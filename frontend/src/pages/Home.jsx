@@ -6,49 +6,48 @@ import TrendSidebar from '../components/TrendSidebar';
 import RecommendedTraders from '../components/RecommendedTraders';
 
 const Home = () => {
-  // 1. Durum Yönetimi (State'ler)
+
   const [activeTab, setActiveTab] = useState('Trendler');
-  const [posts, setPosts] = useState([]); // Gerçek verileri tutacağımız sepet
-  const [loading, setLoading] = useState(true); // Yükleniyor animasyonu için
+  const [posts, setPosts] = useState([]); 
+  const [loading, setLoading] = useState(true); 
 
   const tabs = ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto'];
 
-  // 2. Sayfa yüklendiğinde Backend'e bağlanıp verileri çekiyoruz
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        // Senin FastAPI backend'ine istek atıyoruz
+
         const response = await axios.get('http://127.0.0.1:8000/populer-postlar');
         
-        // 3. ADAPTER MANTIĞI: Senin veritabanı formatını, Zehra'nın tasarımına uyduruyoruz
+
         const gercekVeriler = response.data.map((post) => ({
           id: post.post_id,
           user: { 
             name: post.yazar, 
-            // Kullanıcı adına göre otomatik profil resmi oluşturan ücretsiz bir servis
+            
             avatar: `https://ui-avatars.com/api/?name=${post.yazar}&background=random&color=fff`, 
             isVerified: false 
           },
           content: post.icerik,
-          // Senin veritabanından gelen zaman damgasını güzel bir saate çeviriyoruz
+          
           time: new Date(post.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute:'2-digit' }),
-          likes: Math.floor(Math.random() * 50) + 1, // Şimdilik rastgele beğeni sayısı
+          likes: Math.floor(Math.random() * 50) + 1, 
           comments: 0,
           isFollowed: false
         }));
 
-        setPosts(gercekVeriler); // Veritabanından gelen postları sepete at
+        setPosts(gercekVeriler); 
       } catch (error) {
         console.error("Backend bağlantı hatası, sahte veriler yükleniyor:", error);
-        // Eğer backend kapalıysa proje patlamasın, Zehra'nın sahte verileri görünsün
+        
         setPosts(POSTS_DATA); 
       } finally {
-        setLoading(false); // Yükleme bitti
+        setLoading(false); 
       }
     };
 
     fetchPosts();
-  }, []); // [] anlamı: Bu işlemi sayfa açıldığında sadece 1 kez yap
+  }, []); 
 
   return (
     <div className="flex gap-8 animate-fadeIn">
@@ -84,7 +83,7 @@ const Home = () => {
               <p className="text-blue-500 animate-pulse font-semibold">Veriler sunucudan çekiliyor...</p>
             </div>
           ) : posts.length > 0 ? (
-            // Ekrana POSTS_DATA yerine bizim 'posts' sepetimizi basıyoruz
+            
             posts.map((post) => (
               <FeedCard key={post.id} post={post} />
             ))
