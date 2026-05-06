@@ -1,30 +1,54 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
-import TickerTape from './components/TickerTape';
-import Home from './pages/Home';
-import './index.css';
-import Dashboard from './pages/Dashboard';
+// src/App.js
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+} from "react-router-dom";
+import Home from "./pages/Home";
+import Dashboard from "./pages/Dashboard";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-[#0f1117] text-white font-sans">
-        <TickerTape />
-        <Navbar />
-        <div className="flex max-w-[1400px] mx-auto px-4 gap-6 pt-4">
-          <Sidebar />
-          <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/markets" element={<div className="p-10 text-2xl">Piyasalar Sayfası</div>} />
-              <Route path="/login" element={<div className="p-10 text-2xl">Giriş Yap</div>} />
-              <Route path="/dashboard" element={<Dashboard />} />
-            </Routes>
-          </main>
-        </div>
-      </div>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} /> 
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </Router>
+  );
+}
+
+function AuthPlaceholderPage({ title, buttonText }) {
+  const navigate = useNavigate();
+
+  const handleContinue = () => {
+    navigate("/dashboard");
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#0a0f1d] px-6 text-white">
+      <div className="w-full max-w-md rounded-[28px] border border-white/5 bg-[#182640] p-8 text-center shadow-2xl shadow-black/30">
+        <h1 className="mb-4 text-3xl font-black">{title}</h1>
+        <p className="mb-8 leading-7 text-slate-400">
+          Bu sayfa şu an placeholder olarak hazır. Backend bağlandığında burada
+          gerçek kimlik doğrulama formu çalışacak.
+        </p>
+        <button
+          type="button"
+          onClick={handleContinue}
+          className="w-full rounded-xl bg-blue-600 py-3 text-sm font-black text-white transition hover:bg-blue-500"
+        >
+          {buttonText}
+        </button>
+      </div>
+    </div>
   );
 }
 
