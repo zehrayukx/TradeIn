@@ -1,0 +1,12 @@
+node_modules/
+frontend/node_modules/
+dist/
+build/
+.next/
+out/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+*.log
