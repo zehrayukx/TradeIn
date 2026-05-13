@@ -1,44 +1,30 @@
-import { useState } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, CheckCircle } from 'lucide-react';
+import React from 'react';
+import { MessageSquare, Heart, Share2, MoreHorizontal } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const FeedCard = ({ post }) => {
-  const [liked, setLiked] = useState(false);
-  const [followed, setFollowed] = useState(post.isFollowed);
-
   return (
-    <div className="bg-[#161a23] border border-gray-800 rounded-xl p-4 mb-4 hover:border-gray-700 transition">
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex gap-3">
-          <img src={post.user.avatar} className="w-10 h-10 rounded-full" alt="" />
-          <div>
-            <div className="flex items-center gap-1 font-semibold">
-              {post.user.name} 
-              {post.user.isVerified && <CheckCircle size={14} className="text-blue-500 fill-current" />}
+    <div className="bg-[#1a1d26] border border-gray-800 rounded-2xl mb-4 overflow-hidden transition-all hover:border-gray-700">
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          {/* Resme veya isme tıklayınca profile gider */}
+          <Link to={`/profile/${post.user.name}`} className="flex items-center gap-3 group">
+            <img src={post.user.avatar} alt={post.user.name} className="w-10 h-10 rounded-full object-cover border border-gray-700 group-hover:border-blue-500 transition-all" />
+            <div>
+              <h4 className="font-bold text-white group-hover:underline decoration-blue-500">{post.user.name}</h4>
+              <p className="text-xs text-gray-500">{post.time}</p>
             </div>
-            <span className="text-xs text-gray-500">{post.time}</span>
-          </div>
+          </Link>
+          <button className="text-gray-500 hover:text-white"><MoreHorizontal size={20} /></button>
         </div>
-        <button 
-          onClick={() => setFollowed(!followed)}
-          className={`px-4 py-1 rounded-full text-sm font-medium transition ${
-            followed ? 'bg-gray-700 text-white' : 'bg-blue-600 hover:bg-blue-500'
-          }`}
-        >
-          {followed ? 'Takipte' : 'Takip Et'}
-        </button>
-      </div>
-
-      <p className="text-gray-300 text-sm leading-relaxed mb-4">{post.content}</p>
-
-      <div className="flex justify-between items-center text-gray-500 pt-2 border-t border-gray-800">
-        <button onClick={() => setLiked(!liked)} className={`flex items-center gap-2 hover:text-red-500 ${liked ? 'text-red-500' : ''}`}>
-          <Heart size={18} fill={liked ? 'currentColor' : 'none'} /> <span className="text-xs">{post.likes}</span>
-        </button>
-        <button className="flex items-center gap-2 hover:text-blue-400">
-          <MessageCircle size={18} /> <span className="text-xs">{post.comments}</span>
-        </button>
-        <button className="hover:text-green-400"><Share2 size={18} /></button>
-        <button className="hover:text-yellow-500"><Bookmark size={18} /></button>
+        <p className="text-gray-200 mb-4 leading-relaxed">{post.content}</p>
+        <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+          <div className="flex items-center gap-6">
+            <button className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors"><Heart size={18} /> <span className="text-sm">{post.likes}</span></button>
+            <button className="flex items-center gap-2 text-gray-400 hover:text-blue-500 transition-colors"><MessageSquare size={18} /> <span className="text-sm">{post.comments}</span></button>
+          </div>
+          <button className="text-gray-400 hover:text-green-500 transition-colors"><Share2 size={18} /></button>
+        </div>
       </div>
     </div>
   );
