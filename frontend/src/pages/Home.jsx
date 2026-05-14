@@ -15,36 +15,73 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
 
   const tabs = ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto'];
 
+  // EKLENEN KISIM: Gerçek beğeni fonksiyonu
+    const handleLike = async (postId) => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) {
+      alert("Gönderileri beğenmek için önce giriş yapmalısınız!");
+      return;
+    }
+
+    try {
+      const response = await axios.post(`http://127.0.0.1:8000/post/${postId}/begen`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setPosts(prevPosts => 
+        prevPosts.map(post => {
+          if (post.id === postId) {
+            return {
+              ...post,
+              // Backend 'begenildi' true döndüyse sayıyı 1 artır, false ise 1 azalt
+              likes: response.data.begenildi ? post.likes + 1 : Math.max(0, post.likes - 1),
+              // YENİ: Beğeni durumunu da tersine çeviriyoruz (Tıklandıkça Kırmızı/Gri değişimi)
+              isLiked: response.data.begenildi 
+            };
+          }
+          return post;
+        })
+      );
+    } catch (error) {
+      console.error("Beğeni işlemi sırasında hata oluştu:", error);
+    }
+  };
+
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const response = await axios.get('http://127.0.0.1:8000/populer-postlar');
-        
-        const gercekVeriler = response.data.map((post) => ({
-          id: post.post_id,
-          user: { 
-            name: post.yazar, 
-            avatar: `https://ui-avatars.com/api/?name=${post.yazar}&background=random&color=fff`, 
-            isVerified: false 
-          },
-          content: post.icerik,
-          time: new Date(post.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute:'2-digit' }),
-          likes: Math.floor(Math.random() * 50) + 1, 
-          comments: 0,
-          isFollowed: false
-        }));
+      const fetchPosts = async () => {
+        try {
+          // YENİ: Token varsa başlıkta gönderiyoruz ki backend bizim kim olduğumuzu anlasın
+          const token = localStorage.getItem("tradein_token");
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        setPosts(gercekVeriler); 
-      } catch (error) {
-        console.error("Backend bağlantı hatası, sahte veriler yükleniyor:", error);
-        setPosts(POSTS_DATA); 
-      } finally {
-        setLoading(false); 
-      }
-    };
+          const response = await axios.get('http://127.0.0.1:8000/populer-postlar', { headers });
+          
+          const gercekVeriler = response.data.map((post) => ({
+            id: post.post_id,
+            user: { 
+              name: post.yazar, 
+              avatar: `https://ui-avatars.com/api/?name=${post.yazar}&background=random&color=fff`, 
+              isVerified: false 
+            },
+            content: post.icerik,
+            time: new Date(post.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute:'2-digit' }),
+            likes: post.likes, 
+            comments: post.comments,
+            isLiked: post.isLiked, // YENİ: Backend'den gelen beğeni durumunu al
+            isFollowed: false
+          }));
 
-    fetchPosts();
-  }, []); 
+          setPosts(gercekVeriler); 
+        } catch (error) {
+          console.error("Backend bağlantı hatası, sahte veriler yükleniyor:", error);
+          setPosts(POSTS_DATA); 
+        } finally {
+          setLoading(false); 
+        }
+      };
+
+      fetchPosts();
+    }, []);
 
   return (
     <div className="min-h-screen bg-[#0a0f1d] text-slate-100 flex flex-col">
@@ -96,7 +133,8 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
               </div>
             ) : posts.length > 0 ? (
               posts.map((post) => (
-                <FeedCard key={post.id} post={post} />
+                // EKLENEN KISIM: onLike prop'unu FeedCard'a gönderiyoruz
+                <FeedCard key={post.id} post={post} onLike={handleLike} />
               ))
             ) : (
               <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700">
