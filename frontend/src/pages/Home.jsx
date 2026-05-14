@@ -4,32 +4,30 @@ import { POSTS_DATA } from '../data/mockData';
 import FeedCard from '../components/FeedCard';
 import TrendSidebar from '../components/TrendSidebar';
 import RecommendedTraders from '../components/RecommendedTraders';
+import Navbar from '../components/Navbar';
+import Sidebar from '../components/Sidebar';
 
-const Home = () => {
-
+const Home = ({ isLoggedIn, setIsLoggedIn }) => {
   const [activeTab, setActiveTab] = useState('Trendler');
   const [posts, setPosts] = useState([]); 
   const [loading, setLoading] = useState(true); 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const tabs = ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto'];
 
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-
         const response = await axios.get('http://127.0.0.1:8000/populer-postlar');
         
-
         const gercekVeriler = response.data.map((post) => ({
           id: post.post_id,
           user: { 
             name: post.yazar, 
-            
             avatar: `https://ui-avatars.com/api/?name=${post.yazar}&background=random&color=fff`, 
             isVerified: false 
           },
           content: post.icerik,
-          
           time: new Date(post.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute:'2-digit' }),
           likes: Math.floor(Math.random() * 50) + 1, 
           comments: 0,
@@ -39,7 +37,6 @@ const Home = () => {
         setPosts(gercekVeriler); 
       } catch (error) {
         console.error("Backend bağlantı hatası, sahte veriler yükleniyor:", error);
-        
         setPosts(POSTS_DATA); 
       } finally {
         setLoading(false); 
@@ -50,69 +47,83 @@ const Home = () => {
   }, []); 
 
   return (
-    <div className="flex gap-8 animate-fadeIn">
+    <div className="min-h-screen bg-[#0a0f1d] text-slate-100 flex flex-col">
       
-      {/* 1. ORTA PANEL: Ana Akış (Feed) */}
-      <div className="flex-[1.8] min-w-0">
+      {/* 2. NAVBAR'A YETKİ VERİYORUZ: Butona basınca isSidebarOpen'ı tam tersine çevir */}
+      <Navbar 
+        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+        isLoggedIn={isLoggedIn} 
+      />
+
+      {/* 3. ANA İSKELET: Grid yerine Flex kullanıyoruz ki menü kayarak açılabilsin */}
+      <div className="flex flex-1 max-w-[1440px] w-full mx-auto">
         
-        {/* Üst Sekmeler (Tabs) */}
-        <div className="flex items-center gap-2 mb-6 border-b border-gray-800 overflow-x-auto no-scrollbar sticky top-[116px] bg-[#0f1117] z-10">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-4 text-sm font-bold transition-all relative whitespace-nowrap ${
-                activeTab === tab 
-                ? 'text-blue-500' 
-                : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {tab}
-              {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
-              )}
-            </button>
-          ))}
-        </div>
+        {/* SOL PANEL: Sidebar'a açık mı kapalı mı olduğunu bildiriyoruz */}
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          isLoggedIn={isLoggedIn} 
+          setIsLoggedIn={setIsLoggedIn} 
+        />
 
-        {/* Gönderi Listesi */}
-        <div className="flex flex-col gap-4">
-          {loading ? (
-            // Veri gelirken havalı bir yükleniyor mesajı
-            <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700">
-              <p className="text-blue-500 animate-pulse font-semibold">Veriler sunucudan çekiliyor...</p>
-            </div>
-          ) : posts.length > 0 ? (
-            
-            posts.map((post) => (
-              <FeedCard key={post.id} post={post} />
-            ))
-          ) : (
-            <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700">
-              <p className="text-gray-500 italic">Henüz buralar çok ıssız, ilk postu sen at!</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 2. SAĞ PANEL: Trendler ve Öneriler */}
-      <div className="hidden lg:block flex-1 max-w-[360px]">
-        <div className="sticky top-[116px] flex flex-col gap-6">
-          <TrendSidebar />
-          <RecommendedTraders />
+        {/* ORTA PANEL: Ana Akış (Feed) */}
+        <main className="flex-1 min-w-0 px-6 py-6 transition-all duration-300">
           
-          {/* Footer Linkleri */}
-          <div className="px-4 flex flex-wrap gap-x-3 gap-y-1">
-            {['Hakkımızda', 'Yardım', 'Kullanım Şartları', 'Gizlilik Politikası', 'Çerezler'].map(link => (
-              <span key={link} className="text-[11px] text-gray-600 hover:underline cursor-pointer">
-                {link}
-              </span>
+          {/* Üst Sekmeler (Tabs) */}
+          <div className="flex items-center gap-2 mb-6 border-b border-gray-800 overflow-x-auto no-scrollbar sticky top-[80px] bg-[#0a0f1d] z-10 py-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-3 text-sm font-bold transition-all relative whitespace-nowrap ${
+                  activeTab === tab 
+                  ? 'text-blue-500' 
+                  : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {tab}
+                {activeTab === tab && (
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
+                )}
+              </button>
             ))}
-            <p className="text-[11px] text-gray-600 mt-2 w-full">© 2026 TradeIn Corp.</p>
           </div>
-        </div>
-      </div>
 
+          {/* Gönderi Listesi */}
+          <div className="flex flex-col gap-4">
+            {loading ? (
+              <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700">
+                <p className="text-blue-500 animate-pulse font-semibold">Veriler sunucudan çekiliyor...</p>
+              </div>
+            ) : posts.length > 0 ? (
+              posts.map((post) => (
+                <FeedCard key={post.id} post={post} />
+              ))
+            ) : (
+              <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700">
+                <p className="text-gray-500 italic">Henüz buralar çok ıssız, ilk postu sen at!</p>
+              </div>
+            )}
+          </div>
+        </main>
+
+        {/* SAĞ PANEL: Trendler ve Öneriler */}
+        <aside className="w-[300px] hidden lg:block py-6 pr-6 shrink-0">
+          <div className="sticky top-[80px] flex flex-col gap-6">
+            <TrendSidebar />
+            <RecommendedTraders />
+            
+            <div className="px-4 flex flex-wrap gap-x-3 gap-y-1">
+              {['Hakkımızda', 'Yardım', 'Kullanım Şartları', 'Gizlilik Politikası', 'Çerezler'].map(link => (
+                <span key={link} className="text-[11px] text-gray-600 hover:underline cursor-pointer">
+                  {link}
+                </span>
+              ))}
+              <p className="text-[11px] text-gray-600 mt-2 w-full">© 2026 TradeIn Corp.</p>
+            </div>
+          </div>
+        </aside>
+
+      </div>
     </div>
   );
 };

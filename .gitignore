@@ -1,13 +1,22 @@
+# Python (Backend)
+backend/venv/
+backend/.venv/
+__pycache__/
+*.pyc
+.env
+
+# Node.js (Frontend)
 node_modules/
 frontend/node_modules/
-dist/
-build/
+frontend/build/
+frontend/dist/
 .next/
 out/
-.idea/
-.vscode/
-*.iml
+
+# Sistem ve Editör Dosyaları
 .DS_Store
 Thumbs.db
 *.log
-__pycache__/
+.vscode/
+.idea/
+*.iml

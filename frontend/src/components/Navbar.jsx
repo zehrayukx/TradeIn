@@ -6,6 +6,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
 
+  
   const handleSearch = (e) => {
     if (e.key === 'Enter' && searchTerm.trim() !== "") {
       // Yazılan isme göre profil sayfasına yönlendirir
@@ -48,7 +49,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn }) => {
           <button className="p-2 text-gray-400 hover:text-white"><Bell size={20} /></button>
           <Link to={isLoggedIn ? "/profile" : "/login"} className="flex items-center gap-2 bg-[#1a1d26] border border-gray-700 p-1 pr-3 rounded-full hover:bg-gray-800 transition-all group">
             <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-[10px]">
-              {isLoggedIn ? "PK" : <User size={16} />}
+              {isLoggedIn ? "ME" : <User size={16} />}
             </div>
             <span className="text-xs font-bold hidden md:block">
               {isLoggedIn ? "Profilim" : "Giriş Yap"}

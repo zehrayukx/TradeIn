@@ -79,12 +79,16 @@ def kayit_ol(kullanici: UserCreate, db: Session = Depends(database.get_db)):
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    
     if not user or not auth.verify_password(form_data.password, user.password_hash):
-        return {"hata": "Kullanıcı adı veya şifre hatalı!"}
+        # Sadece sözlük dönme, gerçek bir HATA fırlat!
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Kullanıcı adı veya şifre hatalı!"
+        )
     
     access_token = auth.create_access_token(data={"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
-
 
 @app.get("/kullanicilari-listele")
 def kullanicilari_listele(db: Session = Depends(database.get_db)):
@@ -181,3 +185,73 @@ def portfoyum(db: Session = Depends(database.get_db), current_user: models.User 
     if not assets:
         return {"mesaj": "Portföyün boş."}
     return assets
+
+@app.get("/kullanici/{username}")
+def kullanici_getir(username: str, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    
+    # Kullanıcının istatistikleri
+    posts_query = db.query(models.Post).filter(models.Post.user_id == user.id)
+    posts_count = posts_query.count()
+    followers_count = db.query(models.Follow).filter(models.Follow.followed_id == user.id).count()
+    following_count = db.query(models.Follow).filter(models.Follow.follower_id == user.id).count()
+
+    # YENİ: Kullanıcının gerçek postlarını çekiyoruz
+    # Postları ve yazarı (username) join ile alıyoruz
+    user_posts = posts_query.order_by(models.Post.created_at.desc()).all()
+    
+    formatted_posts = [
+        {
+            "id": p.id,
+            "content": p.content,
+            "likes": 0, # İleride Like tablosu ekleyince burayı bağlarsın
+            "comments": 0,
+            "tarih": p.created_at
+        } for p in user_posts
+    ]
+
+    return {
+        "name": user.username.upper(),
+        "username": f"@{user.username.lower()}",
+        "avatar": f"https://ui-avatars.com/api/?name={user.username}&background=random&color=fff",
+        "bio": "Piyasaları yakından takip eden bir TradeIn kullanıcısı.",
+        "postsCount": posts_count,
+        "followers": followers_count,
+        "following": following_count,
+        "posts": formatted_posts # Gönderileri de yolluyoruz
+    }
+
+@app.get("/profilim")
+def kendi_profilim(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    # Kullanıcının istatistiklerini hesapla
+    posts_query = db.query(models.Post).filter(models.Post.user_id == current_user.id)
+    posts_count = posts_query.count()
+    followers_count = db.query(models.Follow).filter(models.Follow.followed_id == current_user.id).count()
+    following_count = db.query(models.Follow).filter(models.Follow.follower_id == current_user.id).count()
+
+    # Kullanıcının gerçek postlarını çek (Tıpkı kullanici_getir'de yaptığımız gibi)
+    user_posts = posts_query.order_by(models.Post.created_at.desc()).all()
+    
+    formatted_posts = [
+        {
+            "id": p.id,
+            "content": p.content,
+            "likes": 0,
+            "comments": 0,
+            "tarih": p.created_at
+        } for p in user_posts
+    ]
+
+    return {
+        "name": current_user.username.upper(), # 'Sen' yazısını kaldırdık, gerçek isim olsun
+        "username": f"@{current_user.username.lower()}",
+        "avatar": f"https://ui-avatars.com/api/?name={current_user.username}&background=random&color=fff",
+        "bio": "TradeIn Geliştiricisi 🚀", # Buraya DB'den gelen bir alan da eklenebilir ileride
+        "postsCount": posts_count,
+        "followers": followers_count,
+        "following": following_count,
+        "posts": formatted_posts # Gerçek postları yolla
+    }
