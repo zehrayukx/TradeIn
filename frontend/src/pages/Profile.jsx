@@ -11,12 +11,12 @@ const Profile = () => {
   const [profileData, setProfileData] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [userNotFound, setUserNotFound] = useState(false); // Yeni: Bulunamadı durumu
+  const [userNotFound, setUserNotFound] = useState(false); 
 
   useEffect(() => {
     const fetchUserData = async () => {
       setIsLoading(true);
-      setUserNotFound(false); // Her yeni aramada sıfırla
+      setUserNotFound(false); 
       
       try {
         const url = isOwnProfile 
@@ -24,33 +24,32 @@ const Profile = () => {
           : `http://127.0.0.1:8000/kullanici/${username}`;
           
         const token = localStorage.getItem("tradein_token");
-        const headers = isOwnProfile && token ? { Authorization: `Bearer ${token}` } : {};
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
         const response = await axios.get(url, { headers });
         setProfileData(response.data);
 
+        // YENİ: Backend'den gelen gerçek takip durumunu state'e yazıyoruz
+        if (!isOwnProfile) {
+          setIsFollowed(response.data.is_following || false);
+        }
+
         if (response.data.posts) {
           setUserPosts(response.data.posts);
         }
-        
-        // Eğer postlar backend'den geliyorsa:
-        // setUserPosts(response.data.posts || []);
-
       } catch (error) {
           console.error("Profil yükleme hatası:", error);
           
-          // Eğer yetki hatasıysa (token eskiyse veya bozuksa) kullanıcıyı kov!
           if (error.response?.status === 401) {
               localStorage.removeItem("tradein_token");
               window.location.href = "/login"; 
               return;
           }
           
-          // Sadece başka bir kullanıcı arıyorsak "Bulunamadı" ekranını göster
           if (!isOwnProfile) {
               setUserNotFound(true);
           }
-      }finally {
+      } finally {
         setIsLoading(false);
       }
     };
@@ -58,7 +57,35 @@ const Profile = () => {
     fetchUserData();
   }, [username, isOwnProfile]);
 
-  // Yükleniyor Ekranı
+  // 🚀 GERÇEK VERİTABANI TAKİP İŞLEMİ
+  const handleFollow = async () => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) {
+      alert("Takip etmek için giriş yapmalısınız!"); // İleride buraya da modal bağlayabilirsin
+      return;
+    }
+
+    try {
+      // Backend'den aldığımız hedef kullanıcının ID'sine istek atıyoruz
+      const response = await axios.post(`http://127.0.0.1:8000/takip-et/${profileData.id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Backend'in toggle (aç/kapa) mantığına göre arayüzü anında güncelliyoruz
+      const isNowFollowing = response.data.mesaj.includes("takip edildi");
+      setIsFollowed(isNowFollowing);
+      
+      // Takipçi sayısını ekranda anlık olarak +1 / -1 yapıyoruz
+      setProfileData(prev => ({
+        ...prev,
+        followers: isNowFollowing ? prev.followers + 1 : prev.followers - 1
+      }));
+
+    } catch (error) {
+      console.error("Takip işlemi sırasında hata oluştu:", error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 min-h-screen bg-[#0f1117] text-white flex items-center justify-center pb-20">
@@ -67,7 +94,6 @@ const Profile = () => {
     );
   }
 
-  // KULLANICI BULUNAMADI EKRANI (Sahte veri yerine burası çıkacak)
   if (userNotFound || !profileData) {
     return (
       <div className="flex-1 min-h-screen bg-[#0f1117] text-white flex flex-col items-center justify-center pb-20">
@@ -77,7 +103,7 @@ const Profile = () => {
           </div>
           <h2 className="text-2xl font-black mb-2">Kullanıcı Bulunamadı</h2>
           <p className="text-gray-400 mb-8">
-            Veritabanımızda <span className="text-white font-bold">@{username}</span> adında bir kullanıcı yer almıyor. Yazımı kontrol edip tekrar deneyebilirsin.
+            Veritabanımızda <span className="text-white font-bold">@{username}</span> adında bir kullanıcı yer almıyor.
           </p>
           <Link to="/" className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20">
             Ana Sayfaya Dön
@@ -86,10 +112,6 @@ const Profile = () => {
       </div>
     );
   }
-
-  const displayFollowers = isFollowed && !isOwnProfile 
-    ? profileData.followers + 1 
-    : profileData.followers;
 
   return (
     <div className="flex-1 min-h-screen bg-[#0f1117] text-white pb-20">
@@ -107,7 +129,7 @@ const Profile = () => {
                 </button>
               ) : (
                 <button 
-                  onClick={() => setIsFollowed(!isFollowed)}
+                  onClick={handleFollow} // 🚀 DİKKAT: Artık gerçek fonksiyon çalışıyor
                   className={`px-8 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${
                     isFollowed 
                       ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700' 
@@ -120,7 +142,8 @@ const Profile = () => {
             </div>
             <div className="flex justify-center md:justify-start gap-10 mb-6 text-sm">
               <span><strong>{profileData.postsCount}</strong> gönderi</span>
-              <span><strong>{displayFollowers.toLocaleString('tr-TR')}</strong> takipçi</span>
+              {/* Sahte hesabı kaldırdık, doğrudan profilDatasından okuyoruz */}
+              <span><strong>{profileData.followers.toLocaleString('tr-TR')}</strong> takipçi</span>
               <span><strong>{profileData.following.toLocaleString('tr-TR')}</strong> takip</span>
             </div>
             <div className="font-bold mb-1">{profileData.name}</div>
@@ -133,16 +156,16 @@ const Profile = () => {
           {userPosts.length > 0 ? (
             userPosts.map((post) => (
               <div key={post.id} className="bg-[#1a1d26] border border-gray-800 rounded-2xl p-8 w-full shadow-xl">
-                {/* Varsa postun tarihini ekleyebilirsin */}
                 <p className="text-[10px] text-gray-500 mb-2">
                   {post.tarih ? new Date(post.tarih).toLocaleDateString('tr-TR') : ''}
                 </p>
-                
                 <p className="text-lg leading-relaxed mb-6">{post.content}</p>
                 
                 <div className="flex gap-8 text-gray-400 border-t border-gray-800 pt-6">
-                  <div className="flex items-center gap-2 hover:text-red-500 cursor-pointer transition-colors">
-                    <Heart size={22} /> <span>{post.likes || 0}</span>
+                  {/* Profil sayfasındaki kalpler de backend verisine uygun renklensin diye: */}
+                  <div className={`flex items-center gap-2 transition-colors ${post.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}>
+                    <Heart size={22} className={post.isLiked ? "fill-red-500" : ""} /> 
+                    <span>{post.likes || 0}</span>
                   </div>
                   <div className="flex items-center gap-2 hover:text-blue-500 cursor-pointer transition-colors">
                     <MessageSquare size={22} /> <span>{post.comments || 0}</span>

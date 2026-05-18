@@ -279,7 +279,7 @@ def portfoyum(db: Session = Depends(database.get_db), current_user: models.User 
 
 # --- Profil İşlemleri ---
 @app.get("/kullanici/{username}")
-def kullanici_getir(username: str, db: Session = Depends(database.get_db)):
+def kullanici_getir(username: str, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
     user = db.query(models.User).filter(models.User.username == username).first()
     
     if not user:
@@ -290,23 +290,41 @@ def kullanici_getir(username: str, db: Session = Depends(database.get_db)):
     followers_count = db.query(models.Follow).filter(models.Follow.followed_id == user.id).count()
     following_count = db.query(models.Follow).filter(models.Follow.follower_id == user.id).count()
 
+    # YENİ: Giriş yapan kişi bu profili zaten takip ediyor mu?
+    is_following = False
+    if current_user:
+        existing_follow = db.query(models.Follow).filter(
+            models.Follow.follower_id == current_user.id,
+            models.Follow.followed_id == user.id
+        ).first()
+        if existing_follow:
+            is_following = True
+
     user_posts = posts_query.order_by(models.Post.created_at.desc()).all()
     
     formatted_posts = []
     for p in user_posts:
-        # YENİ: Gerçek beğeni ve yorum sayılarını veritabanından sayıyoruz
         like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
         comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
         
+        # Profil sayfasındaki gönderiler için de beğeni durumunu kontrol edelim
+        is_liked = False
+        if current_user:
+            user_like = db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first()
+            if user_like:
+                is_liked = True
+
         formatted_posts.append({
             "id": p.id,
             "content": p.content,
             "likes": like_count,
             "comments": comment_count,
-            "tarih": p.created_at
+            "tarih": p.created_at,
+            "isLiked": is_liked
         })
 
     return {
+        "id": user.id, # YENİ: Frontend'in takip isteği atabilmesi için ID'yi yolluyoruz
         "name": user.username.upper(),
         "username": f"@{user.username.lower()}",
         "avatar": f"https://ui-avatars.com/api/?name={user.username}&background=random&color=fff",
@@ -314,6 +332,7 @@ def kullanici_getir(username: str, db: Session = Depends(database.get_db)):
         "postsCount": posts_count,
         "followers": followers_count,
         "following": following_count,
+        "is_following": is_following, # YENİ: Backend'den gelen gerçek takip durumu
         "posts": formatted_posts 
     }
 
