@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom'; 
-import { X, Heart } from 'lucide-react'; // 🎯 İşte düzeltilen yer burası!
+import { X, Heart } from 'lucide-react'; 
 import { POSTS_DATA } from '../data/mockData';
 import FeedCard from '../components/FeedCard';
 import TrendSidebar from '../components/TrendSidebar';
@@ -10,20 +10,29 @@ import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 
 const Home = ({ isLoggedIn, setIsLoggedIn }) => {
-  const [activeTab, setActiveTab] = useState('Trendler');
+  // 🎯 DİNAMİK SEKMELER: Giriş durumuna göre dizilim değişiyor
+  const tabs = isLoggedIn 
+    ? ['Takip Ettiklerim', 'Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto']
+    : ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto'];
+
+  // Giriş durumuna göre varsayılan aktif sekmeyi belirliyoruz
+  const [activeTab, setActiveTab] = useState(isLoggedIn ? 'Takip Ettiklerim' : 'Trendler');
   const [posts, setPosts] = useState([]); 
   const [loading, setLoading] = useState(true); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState(null);
 
-  const tabs = ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto'];
-
   const handleLogout = () => {
     localStorage.removeItem("tradein_token");
     setIsLoggedIn(false);
     setUser(null);
   };
+
+  // Kullanıcı giriş/çıkış yaptığında aktif sekmeyi otomatik olarak doğru varsayılana eşitle
+  useEffect(() => {
+    setActiveTab(isLoggedIn ? 'Takip Ettiklerim' : 'Trendler');
+  }, [isLoggedIn]);
 
   const handleLike = async (postId) => {
     const token = localStorage.getItem("tradein_token");
@@ -71,11 +80,32 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
         }
       }
     };
+    fetchUserData();
+  }, [isLoggedIn]);
 
+  // 🚀 SEKMEYE GÖRE GÖNDERİLERİ ÇEKEN EFFECT
+  useEffect(() => {
     const fetchPosts = async () => {
+      setLoading(true);
       try {
+        const token = localStorage.getItem("tradein_token");
+        const validToken = token && token !== "undefined" && token !== "null";
         const headers = validToken ? { Authorization: `Bearer ${token}` } : {};
-        const response = await axios.get('http://127.0.0.1:8000/populer-postlar', { headers });
+
+        // 🎯 DİNAMİK URL SEÇİMİ
+        let url = 'http://127.0.0.1:8000/populer-postlar'; // Varsayılan Trendler
+        if (activeTab === 'Takip Ettiklerim') {
+          url = 'http://127.0.0.1:8000/akis';
+        }
+
+        // Borsa, Altın vb. diğer henüz boş sekmeler için koruma mantığı
+        if (activeTab !== 'Takip Ettiklerim' && activeTab !== 'Trendler') {
+          setPosts([]);
+          setLoading(false);
+          return;
+        }
+
+        const response = await axios.get(url, { headers });
         
         const gercekVeriler = response.data.map((post) => ({
           id: post.post_id,
@@ -100,9 +130,8 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
       }
     };
 
-    fetchUserData();
     fetchPosts();
-  }, [isLoggedIn]);
+  }, [activeTab, isLoggedIn]); // Sekme değiştiğinde veya giriş durumu değiştiğinde tetiklenir
 
   return (
     <div className="min-h-screen bg-[#0a0f1d] text-slate-100 flex flex-col relative">
@@ -122,6 +151,8 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
         />
 
         <main className="flex-1 min-w-0 px-6 py-6 transition-all duration-300">
+          
+          {/* Dinamik Sekmeler Alanı */}
           <div className="flex items-center gap-2 mb-6 border-b border-gray-800 overflow-x-auto no-scrollbar sticky top-[80px] bg-[#0a0f1d] z-10 py-2">
             {tabs.map((tab) => (
               <button
@@ -137,14 +168,25 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
             ))}
           </div>
 
+          {/* Gönderi Listesi */}
           <div className="flex flex-col gap-4">
             {loading ? (
               <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700 text-blue-500 animate-pulse">
                 Veriler sunucudan çekiliyor...
               </div>
-            ) : posts.map((post) => (
-              <FeedCard key={post.id} post={post} onLike={handleLike} />
-            ))}
+            ) : posts.length > 0 ? (
+              posts.map((post) => (
+                <FeedCard key={post.id} post={post} onLike={handleLike} />
+              ))
+            ) : (
+              <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700">
+                <p className="text-gray-500 italic">
+                  {activeTab === 'Takip Ettiklerim' 
+                    ? 'Takip ettiğin kimse henüz paylaşım yapmadı veya kimseyi takip etmiyorsun. Trendlere göz atmaya ne dersin?' 
+                    : 'Henüz buralar çok ıssız, ilk postu sen at!'}
+                </p>
+              </div>
+            )}
           </div>
         </main>
 

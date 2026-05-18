@@ -135,14 +135,14 @@ def post_olustur(
 
 @app.get("/populer-postlar")
 def populer_postlar(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
-    results = db.query(models.Post, models.User.username).join(models.User).order_by(models.Post.created_at.desc()).all()
+    # Tüm postları ve yazarlarını çekiyoruz
+    results = db.query(models.Post, models.User.username).join(models.User).all()
     
     formatted_posts = []
     for p, u in results:
         like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
         comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
         
-        # YENİ: Kullanıcı giriş yapmışsa ve bu postu beğenmişse is_liked = True olsun
         is_liked = False
         if current_user:
             user_like = db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first()
@@ -156,11 +156,12 @@ def populer_postlar(db: Session = Depends(database.get_db), current_user: models
             "tarih": p.created_at,
             "likes": like_count,
             "comments": comment_count,
-            "isLiked": is_liked # <-- Frontend'e uçuracağımız sihirli boolean
+            "isLiked": is_liked 
         })
         
+    # 🎯 KİLİT NOKTA: Tüm platformdaki postları beğeni sayısına (likes) göre büyükten küçüğe sıralıyoruz (TRENDLER)
+    formatted_posts.sort(key=lambda x: x["likes"], reverse=True)
     return formatted_posts
-
 
 # YENİ: Beğeni (Like) İşlemi
 @app.post("/post/{post_id}/begen")
@@ -234,11 +235,32 @@ def takip_et(
 
 @app.get("/akis")
 def akis(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    # Kullanıcının takip ettiği kişilerin ID'lerini alıyoruz
     following_ids = db.query(models.Follow.followed_id).filter(models.Follow.follower_id == current_user.id).all()
     ids = [i[0] for i in following_ids]
 
-    feed = db.query(models.Post).filter(models.Post.user_id.in_(ids)).order_by(models.Post.created_at.desc()).all()
-    return feed
+    # 🎯 KİLİT NOKTA: Sadece takip edilen kullanıcıların postlarını ve kullanıcı adlarını çekiyoruz
+    results = db.query(models.Post, models.User.username).join(models.User).filter(models.Post.user_id.in_(ids)).order_by(models.Post.created_at.desc()).all()
+
+    formatted_posts = []
+    for p, u in results:
+        like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
+        comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
+        
+        # Akıştaki postları giriş yapan kullanıcı beğenmiş mi kontrolü
+        user_like = db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first()
+        
+        formatted_posts.append({
+            "post_id": p.id, 
+            "icerik": p.content, 
+            "yazar": u, 
+            "tarih": p.created_at,
+            "likes": like_count,
+            "comments": comment_count,
+            "isLiked": user_like is not None
+        })
+        
+    return formatted_posts
 
 
 # --- Portföy İşlemleri ---
