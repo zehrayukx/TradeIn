@@ -1,36 +1,38 @@
 import React from 'react';
-import { TRENDS } from '../data/mockData';
-import { Settings } from 'lucide-react';
+import { TrendingUp, MoreHorizontal } from 'lucide-react';
 
-const TrendSidebar = () => {
+const TrendSidebar = ({ onTrendClick }) => { // 🎯 YENİ: Tıklanma bilgisini yukarı yollayan prop
+  const trends = [
+    { id: 1, name: 'Borsa', count: '14.2B' },
+    { id: 2, name: 'Altın', count: '9.8B' },
+    { id: 3, name: 'Kripto', count: '7.1B' },
+    { id: 4, name: 'Gümüş', count: '3.4B' }
+  ];
+
   return (
-    <div className="bg-[#161b22] border border-gray-800 rounded-2xl p-4 w-full">
-      <div className="flex justify-between items-center mb-4 px-2">
-        <h2 className="text-xl font-bold text-white">Trendler</h2>
-        <button className="text-gray-500 hover:text-blue-500 transition-colors">
-          <Settings size={18} />
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        {TRENDS.map((trend) => (
+    <div className="bg-[#1a1d26] border border-gray-800 rounded-2xl p-5 shadow-lg">
+      <h3 className="font-black text-xl mb-4 flex items-center gap-2 text-white">
+        <TrendingUp size={22} className="text-blue-500" /> Trendler
+      </h3>
+      
+      <div className="flex flex-col gap-5">
+        {trends.map(trend => (
           <div 
             key={trend.id} 
-            className="px-2 py-2 hover:bg-white/5 rounded-xl cursor-pointer transition-all group"
+            onClick={() => onTrendClick && onTrendClick(trend.name)} // 🚀 Tıklanınca Home'a haber ver!
+            className="flex items-start justify-between cursor-pointer group"
           >
-            <p className="text-blue-500 font-medium text-sm group-hover:underline">
-              {trend.tag}
-            </p>
-            <p className="text-gray-500 text-xs mt-1">
-              {trend.count}
-            </p>
+            <div>
+              <p className="text-[11px] text-gray-500 font-semibold tracking-wide">Türkiye konumunda gündemde</p>
+              <p className="font-bold text-white group-hover:text-blue-500 transition-colors">#{trend.name}</p>
+              <p className="text-xs text-gray-500">{trend.count} gönderi</p>
+            </div>
+            <button className="text-gray-600 hover:text-blue-500 transition-colors">
+              <MoreHorizontal size={18} />
+            </button>
           </div>
         ))}
       </div>
-
-      <button className="w-full mt-4 py-2 text-sm text-blue-500 hover:text-blue-400 font-medium transition-colors">
-        Daha fazla göster
-      </button>
     </div>
   );
 };

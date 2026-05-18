@@ -5,7 +5,7 @@ from sqlalchemy import func
 from pydantic import BaseModel
 from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
-
+from typing import Optional
 import database
 import models
 import auth
@@ -163,9 +163,14 @@ def post_guncelle(
     return {"mesaj": "Post başarıyla güncellendi", "content": post.content}
 
 @app.get("/populer-postlar")
-def populer_postlar(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
-    # Tüm postları ve yazarlarını çekiyoruz
-    results = db.query(models.Post, models.User.username).join(models.User).all()
+def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
+    query = db.query(models.Post, models.User.username).join(models.User)
+    
+    # 🎯 KİLİT NOKTA: Eğer frontend'den bir arama/hashtag kelimesi geldiyse sadece onları filtrele
+    if hashtag:
+        query = query.filter(models.Post.content.ilike(f"%{hashtag}%"))
+        
+    results = query.all()
     
     formatted_posts = []
     for p, u in results:
@@ -188,7 +193,6 @@ def populer_postlar(db: Session = Depends(database.get_db), current_user: models
             "isLiked": is_liked 
         })
         
-    # 🎯 KİLİT NOKTA: Tüm platformdaki postları beğeni sayısına (likes) göre büyükten küçüğe sıralıyoruz (TRENDLER)
     formatted_posts.sort(key=lambda x: x["likes"], reverse=True)
     return formatted_posts
 
@@ -542,3 +546,40 @@ def yorumlari_getir(post_id: int, db: Session = Depends(database.get_db)):
         })
         
     return formatted_comments
+
+@app.get("/onerilen-kullanicilar")
+def onerilen_kullanicilar(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
+    users = db.query(models.User).all()
+    user_data = []
+    
+    for u in users:
+        # 🎯 KİLİT NOKTA: Eğer kullanıcı giriş yapmışsa, algoritma ona "KENDİSİNİ" önermesin!
+        if current_user and current_user.id == u.id:
+            continue
+            
+        followers_count = db.query(models.Follow).filter(models.Follow.followed_id == u.id).count()
+        
+        # Giriş yapmış kullanıcı bu önerilen kişiyi zaten takip ediyor mu?
+        is_following = False
+        if current_user:
+            existing_follow = db.query(models.Follow).filter(
+                models.Follow.follower_id == current_user.id,
+                models.Follow.followed_id == u.id
+            ).first()
+            if existing_follow:
+                is_following = True
+        
+        user_data.append({
+            "id": u.id,
+            "name": u.name if u.name else u.username.upper(),
+            "username": u.username.lower(),
+            "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff",
+            "followers": followers_count,
+            "is_following": is_following
+        })
+        
+    # 🎯 ALGORİTMA: Kullanıcıları takipçi sayısına göre büyükten küçüğe sırala
+    user_data.sort(key=lambda x: x["followers"], reverse=True)
+    
+    # 🎯 LİMİT: Sadece en popüler (ilk) 4 kullanıcıyı döndür
+    return user_data[:4]

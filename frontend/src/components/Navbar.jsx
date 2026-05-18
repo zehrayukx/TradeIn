@@ -1,139 +1,98 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, User, Menu, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Bell, User, Menu, LogOut, PlusCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { PlusCircle } from 'lucide-react';
 
-const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost }) => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
+const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost, searchQuery, setSearchQuery }) => {
+  // 🎯 YENİ: Canlı kullanıcı arama state'leri
+  const [userResults, setUserResults] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const navigate = useNavigate();
-  const dropdownRef = useRef(null);
 
-  // Baş harfleri alan yardımcı fonksiyon
-  const getInitials = (name) => {
-    if (!name) return "?";
-    const parts = name.split(" ");
-    if (parts.length > 1) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return parts[0][0].toUpperCase();
-  };
-
-  // 🚀 CANLI ARAMA (DEBOUNCE MANTIĞI)
+  // 🚀 KİLİT NOKTA: Arama kutusuna bir şey yazıldıkça backend'e gidip kullanıcıları getir
   useEffect(() => {
-    // Kullanıcı yazmayı bitirdikten 300ms sonra backend'e istek atılır (Sunucuyu yormamak için)
-    const delayDebounceFn = setTimeout(async () => {
-      if (searchTerm.trim() !== "") {
+    const fetchUsers = async () => {
+      if (searchQuery && searchQuery.trim().length > 0) {
         try {
-          const response = await axios.get(`http://127.0.0.1:8000/arama?q=${searchTerm}`);
-          setSearchResults(response.data);
+          const res = await axios.get(`http://127.0.0.1:8000/arama?q=${searchQuery}`);
+          setUserResults(res.data);
           setIsDropdownOpen(true);
         } catch (error) {
-          console.error("Arama sırasında hata oluştu:", error);
+          console.error("Kullanıcı arama hatası:", error);
         }
       } else {
-        setSearchResults([]);
-        setIsDropdownOpen(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm]);
-
-  // Enter tuşuna basılırsa
-  const handleSearch = (e) => {
-    if (e.key === 'Enter' && searchTerm.trim() !== "") {
-      navigate(`/profile/${searchTerm.trim()}`);
-      setSearchTerm("");
-      setIsDropdownOpen(false);
-    }
-  };
-
-  // Açılır menüden birine tıklanırsa
-  const handleResultClick = (username) => {
-    navigate(`/profile/${username}`);
-    setSearchTerm("");
-    setIsDropdownOpen(false);
-  };
-
-  // Menü dışına tıklanınca dropdown'ı kapat
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setUserResults([]);
         setIsDropdownOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+
+    // Her harfte veritabanını yormamak için 300 milisaniye gecikme (Debounce) ekliyoruz
+    const delayDebounceFn = setTimeout(() => {
+      fetchUsers();
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   return (
     <nav className="bg-[#0f1117] border-b border-gray-800 sticky top-0 z-50">
       <div className="px-4 h-16 flex items-center justify-between">
-        {/* SOL GRUP */}
-        <div className="flex items-center gap-2 min-w-max">
-          <button onClick={toggleSidebar} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+        
+        {/* SOL KISIM: Logo ve Menü */}
+        <div className="flex items-center gap-4">
+          <button onClick={toggleSidebar} className="p-2 text-gray-400 hover:text-white lg:hidden">
             <Menu size={24} />
           </button>
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">T</div>
-            <span className="text-xl font-black tracking-tighter text-white">TradeIn</span>
+          <Link to="/" className="text-2xl font-black bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent tracking-tighter">
+            TradeIn
           </Link>
         </div>
 
-        {/* ORTA: Arama Barı ve Canlı Dropdown */}
-        <div className="flex-1 max-w-md mx-6" ref={dropdownRef}>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleSearch}
-              onFocus={() => { if (searchResults.length > 0) setIsDropdownOpen(true); }}
-              placeholder="Kullanıcı ara..."
-              className="w-full bg-[#1a1d26] border border-gray-700 rounded-full py-1.5 pl-10 pr-4 text-sm focus:border-blue-500 outline-none transition-all text-white"
-            />
+        {/* 🚀 ORTA KISIM: HİBRİT ARAMA ÇUBUĞU */}
+        <div className="relative w-full max-w-md hidden md:block">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+          <input
+            type="text"
+            value={searchQuery || ""}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Kullanıcı veya gönderi ara..."
+            className="w-full bg-[#1a1d26] border border-gray-800 rounded-full pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+          />
 
-            {/* AÇILIR MENÜ (DROPDOWN) */}
-            {isDropdownOpen && (
-              <div className="absolute top-full mt-2 w-full bg-[#1a1d26] border border-gray-700 rounded-2xl shadow-2xl overflow-hidden z-50">
-                {searchResults.length > 0 ? (
-                  searchResults.map((result) => (
-                    <div 
-                      key={result.username}
-                      onClick={() => handleResultClick(result.username)}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-800 cursor-pointer transition-all border-b border-gray-800/50 last:border-0"
-                    >
-                      <img 
-                        src={result.avatar} 
-                        alt={result.username} 
-                        className="w-8 h-8 rounded-full border border-gray-700"
-                      />
-                      <div>
-                        <div className="text-sm font-bold text-white">{result.name}</div>
-                        <div className="text-xs text-gray-500">@{result.username}</div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-4 text-center text-sm text-gray-500">
-                    Kullanıcı bulunamadı
+          {/* 🎯 KULLANICI AÇILIR MENÜSÜ (DROPDOWN) */}
+          {isDropdownOpen && userResults.length > 0 && (
+            <div className="absolute top-full mt-2 w-full bg-[#1a1d26] border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="p-2 text-[10px] font-bold text-gray-500 bg-[#0f1117] tracking-wider">KULLANICILAR</div>
+              
+              {userResults.map(u => (
+                <Link
+                  key={u.username}
+                  to={`/profile/${u.username}`}
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    if (setSearchQuery) setSearchQuery(""); // Profile gidince aramayı temizle
+                  }}
+                  className="flex items-center gap-3 p-3 hover:bg-gray-800 transition-colors"
+                >
+                  <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full border border-gray-700" />
+                  <div>
+                    <p className="text-sm font-bold text-white">{u.name}</p>
+                    <p className="text-xs text-gray-400">@{u.username}</p>
                   </div>
-                )}
+                </Link>
+              ))}
+
+              <div className="p-3 text-xs text-center text-blue-500 hover:bg-gray-800 border-t border-gray-800 transition-colors">
+                "{searchQuery}" içeren tüm gönderiler arkada listeleniyor
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* SAĞ GRUP */}
+        {/* SAĞ KISIM: Bildirim, Profil, Çıkış vs. */}
         <div className="flex items-center gap-3">
-          {/* 🎯 YENİ: GÖNDERİ OLUŞTUR BUTONU (Sadece giriş yapılmışsa) */}
           {isLoggedIn && (
             <button 
-              onClick={openCreatePost} // Home.jsx'ten gelen fonksiyonu tetikler
+              onClick={openCreatePost} 
               className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all flex items-center gap-2 group"
               title="Gönderi Paylaş"
             >
@@ -147,16 +106,22 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost 
               <LogOut size={20} />
             </button>
           )}
-          <button className="p-2 text-gray-400 hover:text-white transition-colors"><Bell size={20} /></button>
           
-          <Link to={isLoggedIn ? "/profile" : "/login"} className="flex items-center gap-2 bg-[#1a1d26] border border-gray-700 p-1 pr-3 rounded-full hover:bg-gray-800 transition-all group">
-            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-[10px] group-hover:scale-105 transition-transform">
-              {isLoggedIn && user ? getInitials(user.name) : <User size={16} />}
-            </div>
-            <span className="text-xs font-bold hidden md:block text-white">
-              {isLoggedIn && user ? user.name : "Giriş Yap"}
-            </span>
-          </Link>
+          <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
+            <Bell size={24} />
+            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0f1117]"></span>
+          </button>
+          
+          {isLoggedIn ? (
+            <Link to="/profile" className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] ml-2">
+              <img src={`https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=random&color=fff`} alt="Profile" className="w-full h-full rounded-full border border-[#0f1117] object-cover" />
+            </Link>
+          ) : (
+            <Link to="/login" className="flex items-center gap-2 bg-[#1a1d26] hover:bg-gray-800 border border-gray-700 px-4 py-1.5 rounded-full transition-colors ml-2">
+              <User size={18} className="text-gray-400" />
+              <span className="text-sm font-bold">Giriş</span>
+            </Link>
+          )}
         </div>
       </div>
     </nav>
