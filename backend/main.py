@@ -341,15 +341,21 @@ def kullanici_getir(username: str, db: Session = Depends(database.get_db), curre
     followers_count = db.query(models.Follow).filter(models.Follow.followed_id == user.id).count()
     following_count = db.query(models.Follow).filter(models.Follow.follower_id == user.id).count()
 
-    # YENİ: Giriş yapan kişi bu profili zaten takip ediyor mu?
+    # 🎯 KİLİT NOKTA BURASI: Aranan kişi aslında giriş yapan kişinin ta kendisi mi?
     is_following = False
+    is_own_profile = False 
+    
     if current_user:
-        existing_follow = db.query(models.Follow).filter(
-            models.Follow.follower_id == current_user.id,
-            models.Follow.followed_id == user.id
-        ).first()
-        if existing_follow:
-            is_following = True
+        if current_user.id == user.id:
+            is_own_profile = True # Evet, bu sensin!
+        else:
+            # Sen değilsen, takip ediyor musun ona bakalım
+            existing_follow = db.query(models.Follow).filter(
+                models.Follow.follower_id == current_user.id,
+                models.Follow.followed_id == user.id
+            ).first()
+            if existing_follow:
+                is_following = True
 
     user_posts = posts_query.order_by(models.Post.created_at.desc()).all()
     
@@ -358,7 +364,6 @@ def kullanici_getir(username: str, db: Session = Depends(database.get_db), curre
         like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
         comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
         
-        # Profil sayfasındaki gönderiler için de beğeni durumunu kontrol edelim
         is_liked = False
         if current_user:
             user_like = db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first()
@@ -375,7 +380,7 @@ def kullanici_getir(username: str, db: Session = Depends(database.get_db), curre
         })
 
     return {
-        "id": user.id, # YENİ: Frontend'in takip isteği atabilmesi için ID'yi yolluyoruz
+        "id": user.id,
         "name": user.name if user.name else user.username.upper(),
         "username": f"@{user.username.lower()}",
         "avatar": f"https://ui-avatars.com/api/?name={user.username}&background=random&color=fff",
@@ -383,7 +388,8 @@ def kullanici_getir(username: str, db: Session = Depends(database.get_db), curre
         "postsCount": posts_count,
         "followers": followers_count,
         "following": following_count,
-        "is_following": is_following, # YENİ: Backend'den gelen gerçek takip durumu
+        "is_following": is_following,
+        "is_own_profile": is_own_profile, # 🎯 Frontend'e bu işareti uçuruyoruz
         "posts": formatted_posts 
     }
 
@@ -420,6 +426,69 @@ def kendi_profilim(db: Session = Depends(database.get_db), current_user: models.
         "following": following_count,
         "posts": formatted_posts 
     }
+
+@app.get("/profilim/begendiklerim")
+def kendi_begendiklerim(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    # 🎯 Giriş yapan kullanıcının beğendiği postları, postun asıl yazarıyla birleştirerek çekiyoruz
+    results = db.query(models.Post, models.User.username).\
+        join(models.Like, models.Like.post_id == models.Post.id).\
+        join(models.User, models.Post.user_id == models.User.id).\
+        filter(models.Like.user_id == current_user.id).\
+        order_by(models.Post.created_at.desc()).all()
+    
+    formatted_posts = []
+    for p, u in results:
+        like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
+        comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
+        
+        formatted_posts.append({
+            "post_id": p.id, 
+            "icerik": p.content, 
+            "yazar": u, 
+            "tarih": p.created_at,
+            "likes": like_count,
+            "comments": comment_count,
+            "isLiked": True # Zaten beğendikleri listesi olduğu için doğrudan True
+        })
+    return formatted_posts
+
+
+@app.get("/kullanici/{username}/begendiklerim")
+def kullanici_begendiklerim(username: str, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+        
+    # 🎯 İsmi verilen kullanıcının beğendiği postları çekiyoruz
+    results = db.query(models.Post, models.User.username).\
+        join(models.Like, models.Like.post_id == models.Post.id).\
+        join(models.User, models.Post.user_id == models.User.id).\
+        filter(models.Like.user_id == user.id).\
+        order_by(models.Post.created_at.desc()).all()
+    
+    formatted_posts = []
+    for p, u in results:
+        like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
+        comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
+        
+        # Sayfayı gezen giriş yapmış kullanıcı bu postu beğenmiş mi kontrolü
+        is_liked = False
+        if current_user:
+            user_like = db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first()
+            if user_like:
+                is_liked = True
+                
+        formatted_posts.append({
+            "post_id": p.id, 
+            "icerik": p.content, 
+            "yazar": u, 
+            "tarih": p.created_at,
+            "likes": like_count,
+            "comments": comment_count,
+            "isLiked": is_liked
+        })
+    return formatted_posts
+
 
 @app.put("/profilimi-guncelle")
 def profilimi_guncelle(
