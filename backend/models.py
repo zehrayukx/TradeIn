@@ -10,10 +10,14 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    
+    # 🎯 EKSİK OLAN SÜTUN BURASI:
+    name = Column(String(100), nullable=True) 
+    
     bio = Column(Text, nullable=True)
     profile_pic = Column(String(255), nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
-
+    
     # İlişkiler
     posts = relationship("Post", back_populates="owner", cascade="all, delete-orphan")
     assets = relationship("UserAsset", back_populates="owner", cascade="all, delete-orphan")

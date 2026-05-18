@@ -46,6 +46,17 @@ class AssetAdd(BaseModel):
 class CommentCreate(BaseModel):
     content: str
 
+class ProfileUpdate(BaseModel):
+    bio: str
+
+
+class ProfileUpdate(BaseModel):
+    name: str # 🎯 YENİ
+    bio: str
+    
+class PostUpdate(BaseModel):
+    content: str
+
 # --- Kimlik Doğrulama ---
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
     hata_mesaji = HTTPException(
@@ -132,6 +143,24 @@ def post_olustur(
     db.refresh(new_post)
     return {"mesaj": "Post yayınlandı!", "yazar": current_user.username, "post_id": new_post.id}
 
+@app.put("/post/{post_id}")
+def post_guncelle(
+    post_id: int, 
+    gelen_veri: PostUpdate, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post bulunamadı")
+    
+    # Güvenlik: Sadece postun sahibi düzenleyebilir!
+    if post.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Bu postu düzenleme yetkiniz yok")
+    
+    post.content = gelen_veri.content
+    db.commit()
+    return {"mesaj": "Post başarıyla güncellendi", "content": post.content}
 
 @app.get("/populer-postlar")
 def populer_postlar(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
@@ -347,10 +376,10 @@ def kullanici_getir(username: str, db: Session = Depends(database.get_db), curre
 
     return {
         "id": user.id, # YENİ: Frontend'in takip isteği atabilmesi için ID'yi yolluyoruz
-        "name": user.username.upper(),
+        "name": user.name if user.name else user.username.upper(),
         "username": f"@{user.username.lower()}",
         "avatar": f"https://ui-avatars.com/api/?name={user.username}&background=random&color=fff",
-        "bio": "Piyasaları yakından takip eden bir TradeIn kullanıcısı.",
+        "bio": user.bio if user.bio else "Piyasaları yakından takip eden bir TradeIn kullanıcısı.",
         "postsCount": posts_count,
         "followers": followers_count,
         "following": following_count,
@@ -382,15 +411,26 @@ def kendi_profilim(db: Session = Depends(database.get_db), current_user: models.
         })
 
     return {
-        "name": current_user.username.upper(),
+        "name": current_user.name if current_user.name else current_user.username.upper(),
         "username": f"@{current_user.username.lower()}",
         "avatar": f"https://ui-avatars.com/api/?name={current_user.username}&background=random&color=fff",
-        "bio": "TradeIn Geliştiricisi 🚀",
+        "bio": current_user.bio if current_user.bio else "TradeIn platformuna yeni katıldım",
         "postsCount": posts_count,
         "followers": followers_count,
         "following": following_count,
         "posts": formatted_posts 
     }
+
+@app.put("/profilimi-guncelle")
+def profilimi_guncelle(
+    gelen_veri: ProfileUpdate, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    current_user.name = gelen_veri.name # 🎯 YENİ
+    current_user.bio = gelen_veri.bio
+    db.commit()
+    return {"mesaj": "Profil başarıyla güncellendi", "name": current_user.name, "bio": current_user.bio}
 
 # --- Canlı Arama (Live Search) İşlemi ---
 @app.get("/arama")
@@ -413,3 +453,23 @@ def arama_yap(q: str, db: Session = Depends(database.get_db)):
         for u in kullanicilar
     ]
     return sonuclar
+
+# YENİ: Bir gönderinin tüm yorumlarını listeleyen uç
+@app.get("/post/{post_id}/yorumlar")
+def yorumlari_getir(post_id: int, db: Session = Depends(database.get_db)):
+    # Yorumları ve o yorumu yapan kullanıcıları veritabanından birleştirerek (join) çekiyoruz
+    results = db.query(models.Comment, models.User).join(
+        models.User, models.Comment.user_id == models.User.id
+    ).filter(models.Comment.post_id == post_id).order_by(models.Comment.created_at.desc()).all()
+    
+    formatted_comments = []
+    for c, u in results:
+        formatted_comments.append({
+            "id": c.id,
+            "content": c.content,
+            "yazar": u.username,
+            "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff",
+            "tarih": c.created_at
+        })
+        
+    return formatted_comments

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, User, Menu, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { PlusCircle } from 'lucide-react';
 
-const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout }) => {
+const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -129,8 +130,20 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout }) => {
 
         {/* SAĞ GRUP */}
         <div className="flex items-center gap-3">
+          {/* 🎯 YENİ: GÖNDERİ OLUŞTUR BUTONU (Sadece giriş yapılmışsa) */}
           {isLoggedIn && (
-            <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors" title="Çıkış Yap">
+            <button 
+              onClick={openCreatePost} // Home.jsx'ten gelen fonksiyonu tetikler
+              className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all flex items-center gap-2 group"
+              title="Gönderi Paylaş"
+            >
+              <PlusCircle size={24} className="group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold hidden sm:block">Paylaş</span>
+            </button>
+          )}
+
+          {isLoggedIn && (
+            <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
               <LogOut size={20} />
             </button>
           )}
