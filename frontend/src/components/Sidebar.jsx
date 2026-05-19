@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, BarChart2, Bell, Heart, Settings, LogIn, LogOut, User } from 'lucide-react';
+import { Home, BarChart2, Bell, Heart, Settings, LogIn, LogOut, Wallet, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
@@ -8,12 +8,14 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
   const navItems = [
     { name: 'Anasayfa', icon: Home, path: '/' },
     { name: 'Piyasalar', icon: BarChart2, path: '/markets' },
-    { name: 'Alarmlar', icon: Bell, path: '/alarms' },
+    { name: 'Ayarlar', icon: Settings, path: '/settings' },
   ];
 
   const protectedItems = [
-    { name: 'Bildirimler', icon: Heart, path: '/profile' },
-    { name: 'Ayarlar', icon: Settings, path: '/settings' },
+    { name: 'Profilim', icon: User, path: '/profile' },
+    { name: 'Bildirimler', icon: Heart, path: '/notifications' },
+    { name: 'Alarmlar', icon: Bell, path: '/alarms' },
+    { name: 'Portföyüm', icon: Wallet, path: '/portfolio' },
   ];
 
   return (
