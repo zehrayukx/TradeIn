@@ -18,3 +18,18 @@ export const getHomePageData = async () => {
     ]
   };
 };
+export async function getPortfolio() {
+  return [];
+}
+
+export async function addPortfolioAsset(assetData) {
+  return {
+    id: Date.now(),
+    ...assetData,
+    created_at: new Date().toLocaleString("tr-TR"),
+  };
+}
+
+export async function deletePortfolioAsset(id) {
+  return { id };
+}

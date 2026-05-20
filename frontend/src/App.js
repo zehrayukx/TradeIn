@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile'; // <-- İŞTE EKSİK OLAN PARÇA!
+import Portfolio from "./pages/Portfolio";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("tradein_token"));
@@ -23,7 +24,7 @@ function App() {
             element={<Login setIsLoggedIn={setIsLoggedIn} />} 
           />
           <Route path="/register" element={<Register />} />
-          
+          <Route path="/portfolio" element={<Portfolio />} />
           <Route 
             path="/profile/:username?" 
             element={isLoggedIn ? <Profile /> : <Navigate to="/login" />} 
