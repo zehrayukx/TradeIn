@@ -1,22 +1,57 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Home, Search, Bell, Mail, Bookmark, User, MoreHorizontal,
   MessageSquare, Repeat2, Share2, TrendingUp, ChevronDown
 } from 'lucide-react';
 
 const Dashboard = () => {
-  const [posts] = useState([
-    {
-      id: 1,
-      author: "Zehra Kaya",
-      handle: "@zehra_trade",
-      time: "3 dk önce",
-      content: "Bitcoin 68.000$ direnç seviyesini güçlü hacimle yukarı kırdı. Bu, 75.000$'a doğru yeni bir yükseliş dalgasının başlangıcı olabilir...",
-      stats: { price: "$67.842", change: "+1.87%" },
-      likes: 2847, comments: 312, retweets: 891
-    }
-  ]);
 
+  const [posts, setPosts] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("Trendler");
+
+  const categories = [
+    "Trendler",
+    "Takip Edilenler",
+    "Borsa",
+    "Altın",
+    "Bitcoin",
+    "Dolar",
+    "Euro",
+    "Sterlin",
+  ];
+
+  // sonra fetchPosts gelecek
+  const fetchPosts = async (category) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    let url = "http://127.0.0.1:8000/populer-postlar";
+
+    if (category === "Takip Edilenler") {
+      url = "http://127.0.0.1:8000/akis";
+    } else if (category !== "Trendler") {
+      url = `http://127.0.0.1:8000/populer-postlar?hashtag=${encodeURIComponent(category)}`;
+    }
+
+    const response = await fetch(url, {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {},
+    });
+
+    const data = await response.json();
+
+    setPosts(data);
+  } catch (error) {
+    console.error("Postlar alınamadı:", error);
+  }
+};
+
+useEffect(() => {
+  fetchPosts(selectedCategory);
+}, [selectedCategory]);
   return (
     <div className="flex min-h-screen bg-[#0d1117] text-gray-300 max-w-[1300px] mx-auto">
       
@@ -71,15 +106,37 @@ const Dashboard = () => {
 
         <div className="p-4 space-y-4">
           {/* KATEGORİLER (DOLAR, EURO, STERLİN EKLENDİ) */}
-          <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar border-b border-gray-800">
-            <button className="bg-blue-600 text-white px-5 py-1.5 rounded-full text-sm font-bold">Trendler</button>
-            {['Takip Edilenler', 'Borsa', 'Altın', 'Bitcoin', 'Dolar', 'Euro', 'Sterlin'].map(cat => (
-              <button key={cat} className="bg-[#161b22] hover:bg-gray-800 text-gray-400 px-5 py-1.5 rounded-full text-sm font-bold transition whitespace-nowrap">
-                {cat}
-              </button>
-            ))}
-          </div>
+          {/* KATEGORİ BUTONLARI */}
+          <div className="flex items-center gap-3 mb-6 overflow-x-auto no-scrollbar">
+  {categories.map((cat) => (
 
+    <button
+      key={cat}
+
+      onClick={() => setSelectedCategory(cat)}
+
+      className={`
+        px-5 py-2
+        rounded-full
+        text-sm
+        font-bold
+        whitespace-nowrap
+        transition-all
+        duration-200
+
+        ${
+          selectedCategory === cat
+            ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+            : "bg-[#161b22] text-gray-400 hover:bg-[#1f2937] hover:text-white"
+        }
+      `}
+    >
+      {cat}
+    </button>
+
+  ))}
+
+</div>
           {/* PAYLAŞIM ALANI */}
           <div className="flex gap-4 p-4 border-b border-gray-800">
             <div className="w-12 h-12 bg-blue-600 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-white text-lg">Z</div>

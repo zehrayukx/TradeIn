@@ -20,7 +20,7 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
 
   return (
     <aside className={`bg-[#0f1117] border-r border-gray-800 h-[calc(100vh-64px)] sticky top-16 transition-all duration-300 z-40 flex flex-col ${isOpen ? 'w-64' : 'w-0 overflow-hidden'}`}>
-      <div className="flex flex-col h-full py-6 w-64">
+      <div className="flex flex-col h-full py-6 w-full overflow-hidden">
         {/* Navigasyon Listesi */}
         <ul className="space-y-1 px-3 flex-1">
           {navItems.map((item) => (

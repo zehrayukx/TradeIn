@@ -11,10 +11,11 @@ import Sidebar from '../components/Sidebar';
 
 const Home = ({ isLoggedIn, setIsLoggedIn }) => {
   const tabs = isLoggedIn 
-    ? ['Takip Ettiklerim', 'Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto']
-    : ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Kripto'];
-
-  const [activeTab, setActiveTab] = useState(isLoggedIn ? 'Takip Ettiklerim' : 'Trendler');
+  ? ['Trendler', 'Takip Edilenler', 'Borsa', 'Altın', 'Gümüş', 'Bitcoin', 'Dolar', 'Euro', 'Sterlin']
+  : ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Bitcoin', 'Dolar', 'Euro', 'Sterlin']; 
+  
+    
+  const [activeTab, setActiveTab] = useState(isLoggedIn ? 'Takip Edilenler' : 'Trendler');;
   
   // 🚀 KİLİT STATE: Arama kutusu ve hashtag filtresini bu tutacak!
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,7 +38,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
   // 🎯 YENİ: Üst sekmelere tıklandığında hem sekmeyi hem aramayı güncelle
   const handleTabClick = (tab) => {
     setActiveTab(tab);
-    if (tab !== 'Trendler' && tab !== 'Takip Ettiklerim') {
+    if (tab !== 'Trendler' && tab !== 'Takip Edilenler') {
       setSearchQuery(tab); // Borsa, Altın vs basılınca search bara yansısın
     } else {
       setSearchQuery(""); // Trendler'e dönünce aramayı sıfırla (tüm postlar gelsin)
@@ -75,7 +76,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
       setNewPostContent("");
       setShowCreateModal(false);
       setSearchQuery(""); // Yeni post atınca aramayı temizle ve ana akışa dön
-      setActiveTab(isLoggedIn ? 'Takip Ettiklerim' : 'Trendler');
+      setActiveTab(isLoggedIn ? 'Takip Edilenler' : 'Trendler');
     } catch (error) { console.error(error); } finally { setIsPublishing(false); }
   };
 
@@ -93,8 +94,8 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
         if (searchQuery) {
           url = `http://127.0.0.1:8000/populer-postlar?hashtag=${searchQuery}`;
         } 
-        // Arama yoksa ve Takip Ettiklerim sekmesindeysek
-        else if (activeTab === 'Takip Ettiklerim') {
+        // Arama yoksa ve Takip  sekmesindeysek
+        else if (activeTab === 'Takip edilenler') {
           url = 'http://127.0.0.1:8000/akis';
         }
 
@@ -139,23 +140,25 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
         setSearchQuery={setSearchQuery} // 🎯 YENİ: Setter'ı Navbar'a pasla
       />
 
-      <div className="flex flex-1 max-w-[1440px] w-full mx-auto">
+      <div className="flex flex-1 max-w-[1440px] w-full mx-auto px-4">
         <Sidebar isOpen={isSidebarOpen} isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
 
         <main className="flex-1 min-w-0 px-6 py-6 transition-all duration-300">
-          <div className="flex items-center gap-2 mb-6 border-b border-gray-800 overflow-x-auto no-scrollbar sticky top-[80px] bg-[#0a0f1d] z-10 py-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => handleTabClick(tab)} // 🎯 YENİ: Artık handleTabClick çalışıyor
-                className={`px-6 py-3 text-sm font-bold transition-all relative whitespace-nowrap ${activeTab === tab ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                {tab}
-                {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]" />}
-              </button>
-            ))}
-          </div>
-
+          <div className="flex items-center gap-3 mb-6 flex-wrap sticky top-[80px] bg-[#0a0f1d] z-10 py-3">
+  {tabs.map((tab) => (
+    <button
+      key={tab}
+      onClick={() => handleTabClick(tab)}
+      className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 ${
+        activeTab === tab
+          ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+          : 'bg-[#161b22] text-gray-400 hover:bg-[#1f2937] hover:text-white'
+      }`}
+    >
+      {tab}
+    </button>
+  ))}
+</div>
           <div className="flex flex-col gap-4">
             {loading ? (
               <div className="text-center py-20 bg-[#161b22] rounded-2xl border border-dashed border-gray-700 text-blue-500 animate-pulse">Veriler çekiliyor...</div>

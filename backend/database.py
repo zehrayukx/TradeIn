@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base # YENİ: declarative_base artık buradan çağrılıyor
 
 # MySQL bağlantı adresin (Kullanıcı adı, şifre ve DB adın aynı)
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:1.Emircan@localhost:3306/borsa_sosyal_medya"
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:463525@localhost:3306/borsa_sosyal_medya"
 
 # Veritabanı motorunu oluşturuyoruz
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
