@@ -583,3 +583,44 @@ def onerilen_kullanicilar(db: Session = Depends(database.get_db), current_user: 
     
     # 🎯 LİMİT: Sadece en popüler (ilk) 4 kullanıcıyı döndür
     return user_data[:4]
+
+
+# --- Trend (Hashtag) İstatistikleri ---
+@app.get("/trendler")
+def trendleri_getir(db: Session = Depends(database.get_db)):
+    # Takip etmek istediğimiz trend kelimeler
+    trend_kelimeler = ["Borsa", "Altın", "Kripto", "Gümüş"]
+    sonuclar = []
+    
+    for index, kelime in enumerate(trend_kelimeler):
+        # 🎯 İçeriğinde (content) bu kelime geçen postların sayısını bul (Büyük/küçük harf duyarsız)
+        count = db.query(models.Post).filter(models.Post.content.ilike(f"%{kelime}%")).count()
+        
+        sonuclar.append({
+            "id": index + 1,
+            "name": kelime,
+            "count": count
+        })
+        
+    # 🎯 En çok konuşulan trend en üstte çıksın diye sayıya göre azalan şekilde sırala
+    sonuclar.sort(key=lambda x: x["count"], reverse=True)
+    return sonuclar
+
+@app.delete("/portfoy-sil/{asset_id}")
+def portfoy_sil(
+    asset_id: int, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    # Silinmek istenen varlığı bul ve o varlığın gerçekten bu kullanıcıya ait olduğundan emin ol
+    asset = db.query(models.UserAsset).filter(
+        models.UserAsset.id == asset_id, 
+        models.UserAsset.user_id == current_user.id
+    ).first()
+    
+    if not asset:
+        raise HTTPException(status_code=404, detail="Varlık bulunamadı veya silme yetkiniz yok")
+        
+    db.delete(asset)
+    db.commit()
+    return {"mesaj": "Varlık başarıyla silindi"}
