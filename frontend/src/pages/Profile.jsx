@@ -3,8 +3,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { UserPlus, UserCheck, UserX, Check, X, Save } from 'lucide-react';
 import axios from 'axios';
 import FeedCard from '../components/FeedCard'; 
+import Navbar from '../components/Navbar';
+import Sidebar from '../components/Sidebar';
 
-const Profile = () => {
+const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
   const { username } = useParams();
   const navigate = useNavigate(); 
   const isOwnProfile = !username; 
@@ -25,6 +27,7 @@ const Profile = () => {
 
   const [editingPost, setEditingPost] = useState(null);
   const [editPostContent, setEditPostContent] = useState("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Profil Verilerini İlk Yükleme Effect'i
   useEffect(() => {
@@ -182,8 +185,29 @@ const Profile = () => {
   if (isLoading) return <div className="flex-1 min-h-screen bg-[#0f1117] text-white flex items-center justify-center pb-20"><p className="text-blue-500 animate-pulse font-semibold">Profil aranıyor...</p></div>;
   if (userNotFound || !profileData) return <div className="flex-1 min-h-screen bg-[#0f1117] text-white flex flex-col items-center justify-center pb-20"><div className="bg-[#1a1d26] border border-gray-800 p-10 rounded-3xl flex flex-col items-center max-w-md text-center"><UserX size={40} className="text-red-500 mb-6" /><h2 className="text-2xl font-black mb-2">Kullanıcı Bulunamadı</h2><Link to="/" className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold mt-4">Ana Sayfaya Dön</Link></div></div>;
 
+  const handleLogout = () => {
+    localStorage.removeItem("tradein_token");
+    if (setIsLoggedIn) setIsLoggedIn(false);
+    navigate("/login");
+  };
+
   return (
-    <div className="flex-1 min-h-screen bg-[#0f1117] text-white pb-20 relative">
+    <div className="min-h-screen bg-[#0a0f1d] text-white flex flex-col">
+      <Navbar
+        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        isLoggedIn={isLoggedIn || !!localStorage.getItem("tradein_token")}
+        handleLogout={handleLogout}
+        user={profileData ? { name: profileData.name } : null}
+        searchQuery=""
+        setSearchQuery={() => {}}
+      />
+      <div className="flex flex-1 w-full">
+        <Sidebar
+          isOpen={isSidebarOpen}
+          isLoggedIn={isLoggedIn || !!localStorage.getItem("tradein_token")}
+          setIsLoggedIn={setIsLoggedIn}
+        />
+      <div className="flex-1 pb-20 relative">
       <div className="max-w-4xl mx-auto pt-10 px-4">
         {/* Üst Profil Kartı Bölümü */}
         <header className="flex flex-col md:flex-row items-start md:items-center gap-10 md:gap-20 mb-6 border-b border-gray-800 pb-12">
@@ -286,7 +310,9 @@ const Profile = () => {
         </div>
       )}
 
-    </div>
+      </div>
+      </div>
+      </div>
   );
 };
 

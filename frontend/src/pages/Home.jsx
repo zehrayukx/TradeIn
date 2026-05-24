@@ -18,11 +18,12 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
   const [activeTab, setActiveTab] = useState(isLoggedIn ? 'Takip Edilenler' : 'Trendler');;
   
   // 🚀 KİLİT STATE: Arama kutusu ve hashtag filtresini bu tutacak!
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [posts, setPosts] = useState([]); 
   const [loading, setLoading] = useState(true); 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
@@ -131,7 +132,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
     <div className="min-h-screen bg-[#0a0f1d] text-slate-100 flex flex-col relative">
       
       <Navbar 
-        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isLoggedIn={isLoggedIn} 
         handleLogout={handleLogout}
         user={user}
@@ -140,7 +141,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
         setSearchQuery={setSearchQuery} // 🎯 YENİ: Setter'ı Navbar'a pasla
       />
 
-      <div className="flex flex-1 max-w-[1440px] w-full mx-auto px-4">
+      <div className="flex flex-1 w-full">
         <Sidebar isOpen={isSidebarOpen} isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
 
         <main className="flex-1 min-w-0 px-6 py-6 transition-all duration-300">

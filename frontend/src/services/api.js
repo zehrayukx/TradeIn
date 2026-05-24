@@ -1,5 +1,3 @@
-// frontend/src/services/api.js
-
 export const getHomePageData = async () => {
   // Backend'e bağlanamadığı durumlarda sayfayı boş bırakmamak için mock veri
   return {
@@ -33,3 +31,4 @@ export async function addPortfolioAsset(assetData) {
 export async function deletePortfolioAsset(id) {
   return { id };
 }
+

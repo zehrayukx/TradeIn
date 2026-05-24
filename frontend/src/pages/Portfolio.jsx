@@ -43,10 +43,11 @@ function Portfolio({ isLoggedIn, setIsLoggedIn }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
   const [user, setUser] = useState(null);
 
   // 🚀 KİLİT ÇÖZÜM 1: Navbar'ın çökmemesi için arama state'lerini buraya da ekledik
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleLogout = () => {
@@ -209,7 +210,7 @@ function Portfolio({ isLoggedIn, setIsLoggedIn }) {
     <div className="min-h-screen bg-[#0a0f1d] text-slate-100 flex flex-col relative">
       {/* 🚀 NAVBAR'A ARAMA STATE'LERİNİ PASLADIK! */}
       <Navbar 
-        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isLoggedIn={isUserReallyLoggedIn} 
         handleLogout={handleLogout} 
         user={user} 
@@ -217,7 +218,7 @@ function Portfolio({ isLoggedIn, setIsLoggedIn }) {
         setSearchQuery={setSearchQuery} 
       />
 
-      <div className="flex flex-1 max-w-[1440px] w-full mx-auto">
+      <div className="flex flex-1 w-full">
         <Sidebar isOpen={isSidebarOpen} isLoggedIn={isUserReallyLoggedIn} setIsLoggedIn={setIsLoggedIn} />
 
         <main className="flex-1 min-w-0 px-6 py-6 transition-all duration-300">
