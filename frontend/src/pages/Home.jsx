@@ -96,7 +96,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
           url = `http://127.0.0.1:8000/populer-postlar?hashtag=${searchQuery}`;
         } 
         // Arama yoksa ve Takip  sekmesindeysek
-        else if (activeTab === 'Takip edilenler') {
+        else if (activeTab === 'Takip Edilenler') {
           url = 'http://127.0.0.1:8000/akis';
         }
 
