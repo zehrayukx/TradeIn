@@ -3,6 +3,10 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
+from sqlalchemy import Column, Integer, String, ForeignKey, Float, Boolean, DateTime
+from sqlalchemy.sql import func
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -80,3 +84,30 @@ class Follow(Base):
     id = Column(Integer, primary_key=True, index=True)
     follower_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     followed_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+
+# 🚀 GÜNCELLENDİ: MySQL için String'lere uzunluk eklendi (String(50))
+class Alarm(Base):
+    __tablename__ = "alarms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    asset = Column(String(50), index=True) # <-- Düzeltme burada
+    target_price = Column(Float)
+    condition = Column(String(20)) # <-- Düzeltme burada
+    notify_email = Column(Boolean, default=True)
+    notify_browser = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AlarmNotification(Base):
+    __tablename__ = "alarm_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    alarm_id = Column(Integer, ForeignKey("alarms.id", ondelete="CASCADE"))
+    asset = Column(String(50)) # <-- Düzeltme burada
+    target_price = Column(Float)
+    triggered_price = Column(Float)
+    condition = Column(String(20)) # <-- Düzeltme burada
+    is_read = Column(Boolean, default=False)
+    triggered_at = Column(DateTime(timezone=True), server_default=func.now())

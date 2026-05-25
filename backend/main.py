@@ -57,6 +57,20 @@ class ProfileUpdate(BaseModel):
 class PostUpdate(BaseModel):
     content: str
 
+class AlarmCreate(BaseModel):
+    asset: str
+    target_price: float
+    condition: str  # "above" veya "below"
+    notify_email: bool
+    notify_browser: bool
+
+class NotificationCreate(BaseModel):
+    alarm_id: int
+    asset: str
+    target_price: float
+    triggered_price: float
+    condition: str
+
 # --- Kimlik Doğrulama ---
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
     hata_mesaji = HTTPException(
@@ -624,3 +638,106 @@ def portfoy_sil(
     db.delete(asset)
     db.commit()
     return {"mesaj": "Varlık başarıyla silindi"}
+
+# --- Alarm İşlemleri ---
+
+@app.post("/alarm-kur")
+def alarm_kur(
+    gelen_veri: AlarmCreate, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    new_alarm = models.Alarm(
+        user_id=current_user.id,
+        asset=gelen_veri.asset,
+        target_price=gelen_veri.target_price,
+        condition=gelen_veri.condition,
+        notify_email=gelen_veri.notify_email,
+        notify_browser=gelen_veri.notify_browser,
+        is_active=True
+    )
+    db.add(new_alarm)
+    db.commit()
+    # 🚀 DÜZELTME BURADA: Ham objeyi değil, güvenli bir sözlük (dict) döndürüyoruz.
+    return {"mesaj": "Alarm başarıyla kuruldu"}
+
+
+@app.get("/alarmlarim")
+def alarmlarim(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    return db.query(models.Alarm).filter(models.Alarm.user_id == current_user.id).order_by(models.Alarm.created_at.desc()).all()
+
+
+@app.put("/alarm-toggle/{alarm_id}")
+def alarm_toggle(alarm_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    alarm = db.query(models.Alarm).filter(models.Alarm.id == alarm_id, models.Alarm.user_id == current_user.id).first()
+    if not alarm:
+        raise HTTPException(status_code=404, detail="Alarm bulunamadı")
+    
+    alarm.is_active = not alarm.is_active
+    db.commit()
+    return {"mesaj": "Alarm durumu güncellendi", "is_active": alarm.is_active}
+
+
+@app.delete("/alarm-sil/{alarm_id}")
+def alarm_sil(alarm_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    alarm = db.query(models.Alarm).filter(models.Alarm.id == alarm_id, models.Alarm.user_id == current_user.id).first()
+    if not alarm:
+        raise HTTPException(status_code=404, detail="Alarm bulunamadı")
+    
+    db.delete(alarm)
+    db.commit()
+    return {"mesaj": "Alarm başarıyla silindi"}
+
+
+# --- Alarm Tetiklenme Bildirimleri Geçmişi ---
+
+@app.get("/alarm-bildirimleri")
+def alarm_bildirimleri(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    return db.query(models.AlarmNotification).filter(models.AlarmNotification.user_id == current_user.id).order_by(models.AlarmNotification.triggered_at.desc()).all()
+
+
+@app.put("/alarm-bildirimleri-okundu")
+def alarm_bildirimleri_okundu(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    db.query(models.AlarmNotification).filter(
+        models.AlarmNotification.user_id == current_user.id, 
+        models.AlarmNotification.is_read == False
+    ).update({"is_read": True}, synchronize_session=False)
+    db.commit()
+    return {"mesaj": "Tüm bildirimler okundu işaretlendi"}
+
+
+@app.delete("/alarm-bildirim-sil/{notif_id}")
+def alarm_bildirim_sil(notif_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    notif = db.query(models.AlarmNotification).filter(models.AlarmNotification.id == notif_id, models.AlarmNotification.user_id == current_user.id).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Bildirim bulunamadı")
+    
+    db.delete(notif)
+    db.commit()
+    return {"mesaj": "Bildirim silindi"}
+
+@app.post("/alarm-tetiklendi")
+def alarm_tetiklendi(
+    gelen_veri: NotificationCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # 1. Bildirim geçmişini tabloya kaydet
+    yeni_bildirim = models.AlarmNotification(
+        user_id=current_user.id,
+        alarm_id=gelen_veri.alarm_id,
+        asset=gelen_veri.asset,
+        target_price=gelen_veri.target_price,
+        triggered_price=gelen_veri.triggered_price,
+        condition=gelen_veri.condition,
+        is_read=False
+    )
+    db.add(yeni_bildirim)
+    
+    # 2. Alarmı bul ve artık tetiklendiği için pasife al (is_active = False)
+    alarm = db.query(models.Alarm).filter(models.Alarm.id == gelen_veri.alarm_id).first()
+    if alarm:
+        alarm.is_active = False
+        
+    db.commit()
+    return {"mesaj": "Bildirim kaydedildi ve alarm kapatıldı"}
