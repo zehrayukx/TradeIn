@@ -44,6 +44,7 @@ const Register = () => {
       });
 
       console.log("🚀 Kayıt başarılı:", response.data);
+      localStorage.setItem("tradein_username", formData.kullanici_adi.replace(/^@/, ''));
       navigate("/login"); 
     } catch (err) {
       console.error("Kayıt hatası:", err);
