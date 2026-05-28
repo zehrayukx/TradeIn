@@ -10,8 +10,12 @@ import database
 import models
 import auth
 from database import engine 
-
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from fastapi import BackgroundTasks # FastAPI'den import ediyoruz
 from decimal import Decimal
+
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -70,6 +74,13 @@ class NotificationCreate(BaseModel):
     target_price: float
     triggered_price: float
     condition: str
+
+class UsernameUpdate(BaseModel):
+    new_username: str
+
+class PasswordUpdate(BaseModel):
+    old_password: str
+    new_password: str
 
 # --- Kimlik Doğrulama ---
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
@@ -716,13 +727,15 @@ def alarm_bildirim_sil(notif_id: int, db: Session = Depends(database.get_db), cu
     db.commit()
     return {"mesaj": "Bildirim silindi"}
 
+# 🚀 GÜNCELLENDİ: BackgroundTasks eklendi ve e-posta tetikleyici bağlandı
 @app.post("/alarm-tetiklendi")
 def alarm_tetiklendi(
     gelen_veri: NotificationCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user) # Giriş yapan kullanıcının tüm bilgileri zaten burada!
 ):
-    # 1. Bildirim geçmişini tabloya kaydet
+    # 1. Bildirim geçmişini kaydet
     yeni_bildirim = models.AlarmNotification(
         user_id=current_user.id,
         alarm_id=gelen_veri.alarm_id,
@@ -734,10 +747,108 @@ def alarm_tetiklendi(
     )
     db.add(yeni_bildirim)
     
-    # 2. Alarmı bul ve artık tetiklendiği için pasife al (is_active = False)
+    # 2. Alarmı bul
     alarm = db.query(models.Alarm).filter(models.Alarm.id == gelen_veri.alarm_id).first()
     if alarm:
-        alarm.is_active = False
+        alarm.is_active = False # Alarmı pasife al
         
+        # 3. 🚀 DÜZELTME: Sabit e-posta yerine token'dan gelen aktif kullanıcının e-postasını kullanıyoruz
+        if alarm.notify_email and current_user.email:
+            background_tasks.add_task(
+                send_alarm_email,
+                to_email=current_user.email, # <-- Giriş yapan kimse, mail otomatik ona gider
+                asset=gelen_veri.asset,
+                target_price=gelen_veri.target_price,
+                current_price=gelen_veri.triggered_price,
+                condition=gelen_veri.condition
+            )
+            
     db.commit()
-    return {"mesaj": "Bildirim kaydedildi ve alarm kapatıldı"}
+    return {"mesaj": "Bildirim kaydedildi, alarm kapatıldı ve kullanıcının kendi mailine bildirim sıraya alındı"}
+
+def send_alarm_email(to_email: str, asset: str, target_price: float, current_price: float, condition: str):
+    # ⚠️ GÜVENLİK: Gerçek dünyada bu bilgileri .env dosyasında saklamalısın, GitHub'a pushlamamaya dikkat et!
+    SENDER_EMAIL = "emircan123kocatepe@gmail.com" # Kendi mail adresin
+    APP_PASSWORD = "BURAYA_16_HANELI_SIFREYI_YAZ" # Az önce aldığın şifreyi boşluksuz yaz
+
+    durum_metni = "Üzerine Çıktı 📈" if condition == "above" else "Altına Düştü 📉"
+    
+    subject = f"🔔 TradeIn Alarm: {asset} Hedefe Ulaştı!"
+    body = f"""
+    Merhaba,
+
+    TradeIn sisteminde kurduğunuz fiyat alarmı tetiklendi!
+
+    💰 Varlık: {asset}
+    🎯 Hedeflenen Fiyat: {target_price}
+    ⚡ Tetiklenme Fiyatı: {current_price}
+    📊 Koşul: {durum_metni}
+
+    Piyasalarda bol kazançlar dileriz,
+    TradeIn Otomatik Bildirim Sistemi
+    """
+
+    msg = MIMEMultipart()
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain', 'utf-8')) # utf-8 Türkçe karakter sorunu olmaması için
+
+    try:
+        # Gmail sunucularına bağlan ve e-postayı gönder
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(SENDER_EMAIL, APP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        print(f"{to_email} adresine alarm e-postası başarıyla gönderildi.")
+    except Exception as e:
+        print(f"E-posta gönderim hatası: {e}")
+
+# --- AYARLAR VE HESAP YÖNETİMİ ---
+
+@app.put("/kullanici-adi-degistir")
+def kullanici_adi_degistir(
+    data: UsernameUpdate, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    # 1. Yeni kullanıcı adının başkası tarafından kullanılıp kullanılmadığını kontrol et
+    mevcut_kullanici = db.query(models.User).filter(models.User.username == data.new_username).first()
+    if mevcut_kullanici:
+        # Frontend'deki "taken" durumunu tetiklemek için 409 Conflict dönüyoruz
+        raise HTTPException(status_code=409, detail="Bu kullanıcı adı zaten alınmış.")
+    
+    # 2. Müsaitse güncelle ve kaydet
+    current_user.username = data.new_username
+    db.commit()
+    return {"mesaj": "Kullanıcı adı güncellendi", "username": current_user.username}
+
+
+@app.post("/sifre-degistir")
+def sifre_degistir(
+    data: PasswordUpdate, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    # 🚀 DÜZELTME 1: Veritabanındaki GERÇEK sütun adı olan password_hash kullanıldı
+    if not auth.verify_password(data.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Mevcut şifre hatalı.")
+    
+    # 🚀 DÜZELTME 2: Yeni şifre de password_hash sütununa kaydediliyor
+    current_user.password_hash = auth.get_password_hash(data.new_password)
+    db.commit()
+    return {"mesaj": "Şifre başarıyla güncellendi."}
+
+
+@app.delete("/hesabimi-sil")
+def hesabimi_sil(
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    # Kullanıcıyı veritabanından sil.
+    # Eğer models.py dosyasındaki diğer tablolarda (Alarmlar, Gönderiler vb.) 
+    # ForeignKey için ondelete="CASCADE" ayarı yaptıysan, kullanıcının tüm verileri otomatik temizlenir.
+    db.delete(current_user)
+    db.commit()
+    return {"mesaj": "Hesap başarıyla silindi."}
