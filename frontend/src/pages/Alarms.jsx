@@ -8,6 +8,7 @@ import {
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import { useTheme, getThemeClasses } from "../context/ThemeContext";
+import axios from "axios";
 
 const assetTypes = [
   { name: "Bitcoin", icon: "₿", color: "#f7931a", unit: "USD" },
@@ -18,14 +19,17 @@ const assetTypes = [
   { name: "Gümüş",  icon: "⚪", color: "#94a3b8", unit: "TRY/gr" },
   { name: "Borsa",   icon: "📈", color: "#34d399", unit: "BIST" },
 ];
+
 const mockPrices = { Bitcoin: 2850000, Dolar: 32.45, Euro: 35.12, Sterlin: 41.22, Altın: 1985.5, Gümüş: 24.8, Borsa: 10842 };
 
 function Alarms({ isLoggedIn, setIsLoggedIn }) {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
 
-  const [alarms, setAlarms] = useState(() => { try { return JSON.parse(localStorage.getItem("tradein_alarms") || "[]"); } catch { return []; } });
-  const [notifications, setNotifications] = useState(() => { try { return JSON.parse(localStorage.getItem("tradein_alarm_notifs") || "[]"); } catch { return []; } });
+  // 🚀 DÜZELTME 1: localStorage sildik, boş dizi ile başlıyor
+  const [alarms, setAlarms] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  
   const [prices, setPrices] = useState(mockPrices);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -39,12 +43,35 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
   const [notifyBrowser, setNotifyBrowser] = useState(true);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
   const [notifPermission, setNotifPermission] = useState(typeof Notification !== "undefined" ? Notification.permission : "default");
+  
   const priceIntervalRef = useRef(null);
   const checkedAlarmsRef = useRef(new Set());
+  
+  // 🚀 DÜZELTME 2: Alarmları ve Bildirimleri API'den Çek
+  const fetchAlarmsData = useCallback(async () => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
 
-  useEffect(() => { localStorage.setItem("tradein_alarms", JSON.stringify(alarms)); }, [alarms]);
-  useEffect(() => { localStorage.setItem("tradein_alarm_notifs", JSON.stringify(notifications)); }, [notifications]);
+    try {
+      const [alarmsRes, notifsRes] = await Promise.all([
+        axios.get("http://127.0.0.1:8000/alarmlarim", { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get("http://127.0.0.1:8000/alarm-bildirimleri", { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setAlarms(alarmsRes.data);
+      setNotifications(notifsRes.data);
+    } catch (error) {
+      console.error("Veriler çekilemedi:", error);
+    }
+  }, []);
 
+  // Kullanıcı giriş yaptıysa sayfayı açtığında verileri çek
+  useEffect(() => {
+    if (isLoggedIn || localStorage.getItem("tradein_token")) {
+      fetchAlarmsData();
+    }
+  }, [fetchAlarmsData, isLoggedIn]);
+
+  // Fiyat dalgalanma simülasyonu
   useEffect(() => {
     priceIntervalRef.current = setInterval(() => {
       setPrices(prev => Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, v * (1 + (Math.random() - 0.5) * 0.002)])));
@@ -52,26 +79,48 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     return () => clearInterval(priceIntervalRef.current);
   }, []);
 
-  const triggerAlarm = useCallback((alarm, currentPrice) => {
-    const newNotif = {
-      id: Date.now(), asset: alarm.asset, assetIcon: alarm.assetIcon, assetColor: alarm.assetColor,
-      unit: alarm.unit, targetPrice: alarm.targetPrice, currentPrice, condition: alarm.condition,
-      timestamp: new Date().toISOString(), read: false,
-    };
-    setNotifications(prev => [newNotif, ...prev.slice(0, 49)]);
-    setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, active: false } : a));
-    if (alarm.notifyBrowser && notifPermission === "granted") {
-      new Notification("🔔 TradeIn Alarm!", { body: `${alarm.asset} ${alarm.condition === "above" ? "üstüne çıktı" : "altına düştü"}: ${formatPrice(currentPrice)} ${alarm.unit}`, icon: "/favicon.ico" });
-    }
-  }, [notifPermission]);
+  // 🚀 DÜZELTME 3: Alarm Tetiklendiğinde API'ye Bildir
+  const triggerAlarm = useCallback(async (alarm, currentPrice) => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
 
+    try {
+      await axios.post("http://127.0.0.1:8000/alarm-tetiklendi", {
+        alarm_id: alarm.id,
+        asset: alarm.asset,
+        target_price: alarm.target_price,
+        triggered_price: currentPrice,
+        condition: alarm.condition
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // API'ye yolladıktan sonra arayüzü güncelle
+      fetchAlarmsData();
+
+      if (alarm.notify_browser && notifPermission === "granted") {
+        new Notification("🔔 TradeIn Alarm!", { 
+          body: `${alarm.asset} ${alarm.condition === "above" ? "üstüne çıktı" : "altına düştü"}: ${formatPrice(currentPrice)}`, 
+          icon: "/favicon.ico" 
+        });
+      }
+    } catch (error) {
+      console.error("Alarm tetiklenemedi:", error);
+    }
+  }, [fetchAlarmsData, notifPermission]);
+
+  // Fiyatları ve alarmları sürekli kontrol et
   useEffect(() => {
-    alarms.filter(a => a.active).forEach(alarm => {
+    alarms.filter(a => a.is_active).forEach(alarm => {
       if (checkedAlarmsRef.current.has(alarm.id)) return;
       const cp = prices[alarm.asset];
       if (!cp) return;
-      const hit = alarm.condition === "above" ? cp >= alarm.targetPrice : cp <= alarm.targetPrice;
-      if (hit) { checkedAlarmsRef.current.add(alarm.id); triggerAlarm(alarm, cp); }
+      
+      const hit = alarm.condition === "above" ? cp >= alarm.target_price : cp <= alarm.target_price;
+      if (hit) { 
+        checkedAlarmsRef.current.add(alarm.id); 
+        triggerAlarm(alarm, cp); 
+      }
     });
   }, [prices, alarms, triggerAlarm]);
 
@@ -81,15 +130,94 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     setNotifPermission(perm);
   };
 
-  const handleCreateAlarm = () => {
+  // 🚀 DÜZELTME 4: Yeni Alarm Kurarken API'ye Yolla
+  const handleCreateAlarm = async () => {
     if (!targetPrice || isNaN(Number(targetPrice)) || Number(targetPrice) <= 0) return;
-    setAlarms(prev => [{ id: Date.now(), asset: selectedAsset.name, assetIcon: selectedAsset.icon, assetColor: selectedAsset.color, unit: selectedAsset.unit, targetPrice: Number(targetPrice), condition, notifyEmail, notifyBrowser, active: true, createdAt: new Date().toISOString() }, ...prev]);
-    setShowCreateModal(false); setTargetPrice(""); setCondition("above");
+    
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
+
+    try {
+      await axios.post("http://127.0.0.1:8000/alarm-kur", {
+        asset: selectedAsset.name,
+        target_price: Number(targetPrice),
+        condition: condition,
+        notify_email: notifyEmail,
+        notify_browser: notifyBrowser
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      fetchAlarmsData(); // Listeyi güncelle
+      setShowCreateModal(false); 
+      setTargetPrice(""); 
+      setCondition("above");
+    } catch (error) {
+      console.error("Alarm kurulamadı:", error);
+    }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Alarm Aç/Kapat Toggle
+  const handleToggleAlarm = async (alarmId) => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
+    try {
+      await axios.put(`http://127.0.0.1:8000/alarm-toggle/${alarmId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchAlarmsData();
+    } catch (error) {
+      console.error("Toggle hatası:", error);
+    }
+  };
+
+  // Alarm Sil
+  const handleDeleteAlarm = async (alarmId) => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
+    try {
+      await axios.delete(`http://127.0.0.1:8000/alarm-sil/${alarmId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchAlarmsData();
+    } catch (error) {
+      console.error("Silme hatası:", error);
+    }
+  };
+
+  // Bildirim Sil
+  const handleDeleteNotif = async (notifId) => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
+    try {
+      await axios.delete(`http://127.0.0.1:8000/alarm-bildirim-sil/${notifId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchAlarmsData();
+    } catch (error) {
+      console.error("Bildirim silinemedi:", error);
+    }
+  };
+
+  // Tüm Bildirimleri Okundu İşaretle
+  const handleMarkAsRead = async () => {
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
+    try {
+      await axios.put("http://127.0.0.1:8000/alarm-bildirimleri-okundu", {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchAlarmsData();
+    } catch (error) {
+      console.error("Okundu işaretlenemedi:", error);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
   function formatPrice(val) { return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(val); }
+  
   function relativeTime(iso) {
+    if(!iso) return "";
     const diff = Date.now() - new Date(iso).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "Az önce";
@@ -117,14 +245,13 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
   return (
     <div className={`min-h-screen ${t.pageBg} ${t.textPrimary} flex flex-col relative transition-colors duration-300`}>
       <Navbar toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isLoggedIn={isLoggedIn || hasLocalToken}
-        handleLogout={() => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); }}
+        handleLogout={() => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); setAlarms([]); setNotifications([]); window.location.href = '/login'; }}
         user={user} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       <div className="flex flex-1 w-full">
         <Sidebar isOpen={isSidebarOpen} isLoggedIn={isLoggedIn || hasLocalToken} setIsLoggedIn={setIsLoggedIn} alarmNotifCount={unreadCount} />
 
         <main className="flex-1 min-w-0 px-6 py-6 transition-all duration-300">
-          {/* Başlık */}
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className={`text-3xl font-bold tracking-tight ${t.textPrimary} flex items-center gap-3`}>
@@ -138,7 +265,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
             </button>
           </div>
 
-          {/* Canlı Fiyat Bandı */}
           <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
             {assetTypes.map(asset => (
               <div key={asset.name} className={`rounded-xl border ${t.cardBorder} ${t.deepCardBg} px-3 py-2.5 flex flex-col gap-0.5 transition-colors duration-300`}>
@@ -152,7 +278,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
             ))}
           </div>
 
-          {/* Bildirim izni */}
           {notifPermission !== "granted" && (
             <div className="mb-5 flex items-center justify-between rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
               <div className="flex items-center gap-3 text-sm text-yellow-400">
@@ -162,10 +287,9 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
             </div>
           )}
 
-          {/* Sekmeler */}
           <div className={`flex gap-1 mb-6 ${t.deepCardBg} border ${t.cardBorder} rounded-xl p-1 w-fit transition-colors duration-300`}>
             {[["alarms","Alarmlarım"], ["notifications","Bildirimler"]].map(([id, label]) => (
-              <button key={id} onClick={() => { setActiveTab(id); if (id === "notifications") setNotifications(prev => prev.map(n => ({...n, read: true}))); }}
+              <button key={id} onClick={() => { setActiveTab(id); if (id === "notifications") handleMarkAsRead(); }}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === id ? "bg-blue-600 text-white shadow" : `${t.textSecond} ${t.hoverText} ${t.hoverBg}`}`}>
                 {label}
                 {id === "alarms" && alarms.length > 0 && <span className={`ml-2 text-xs ${t.cardBg2} ${t.textSecond} px-1.5 py-0.5 rounded-full`}>{alarms.length}</span>}
@@ -177,28 +301,29 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
           {activeTab === "alarms" && (
             alarms.length === 0 ? <EmptyAlarms t={t} onOpen={() => setShowCreateModal(true)} /> :
             <div className="space-y-3">
-              {alarms.map(alarm => (
-                <AlarmCard key={alarm.id} t={t} alarm={alarm} currentPrice={prices[alarm.asset]}
-                  onDelete={() => setAlarms(prev => prev.filter(a => a.id !== alarm.id))}
-                  onToggle={() => setAlarms(prev => prev.map(a => a.id === alarm.id ? {...a, active: !a.active} : a))}
-                  formatPrice={formatPrice} relativeTime={relativeTime} />
-              ))}
+              {alarms.map(alarm => {
+                const assetData = assetTypes.find(a => a.name === alarm.asset) || assetTypes[0];
+                return (
+                  <AlarmCard key={alarm.id} t={t} alarm={alarm} assetData={assetData} currentPrice={prices[alarm.asset]}
+                    onDelete={() => handleDeleteAlarm(alarm.id)}
+                    onToggle={() => handleToggleAlarm(alarm.id)}
+                    formatPrice={formatPrice} relativeTime={relativeTime} />
+                );
+              })}
             </div>
           )}
 
           {activeTab === "notifications" && (
             notifications.length === 0 ? <EmptyNotifications t={t} /> :
             <div className="space-y-3">
-              {notifications.length > 0 && (
-                <div className="flex justify-end mb-3">
-                  <button onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Tümünü okundu işaretle</button>
-                </div>
-              )}
-              {notifications.map(notif => (
-                <NotificationCard key={notif.id} t={t} notif={notif}
-                  onDelete={() => setNotifications(prev => prev.filter(n => n.id !== notif.id))}
-                  formatPrice={formatPrice} relativeTime={relativeTime} />
-              ))}
+              {notifications.map(notif => {
+                 const assetData = assetTypes.find(a => a.name === notif.asset) || assetTypes[0];
+                 return (
+                  <NotificationCard key={notif.id} t={t} notif={notif} assetData={assetData}
+                    onDelete={() => handleDeleteNotif(notif.id)}
+                    formatPrice={formatPrice} relativeTime={relativeTime} />
+                 );
+              })}
             </div>
           )}
         </main>
@@ -216,15 +341,15 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
   );
 }
 
-function AlarmCard({ t, alarm, currentPrice, onDelete, onToggle, formatPrice, relativeTime }) {
+function AlarmCard({ t, alarm, assetData, currentPrice, onDelete, onToggle, formatPrice, relativeTime }) {
   const isAbove = alarm.condition === "above";
   return (
-    <div className={`rounded-2xl border p-5 transition-all ${alarm.active ? `border-blue-500/30 ${t.cardBg}` : `${t.cardBorder} ${t.deepCardBg} opacity-60`}`}>
+    <div className={`rounded-2xl border p-5 transition-all ${alarm.is_active ? `border-blue-500/30 ${t.cardBg}` : `${t.cardBorder} ${t.deepCardBg} opacity-60`}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl text-xl flex-shrink-0"
-            style={{ backgroundColor: alarm.assetColor + "22", border: `1px solid ${alarm.assetColor}44` }}>
-            {alarm.assetIcon}
+            style={{ backgroundColor: assetData.color + "22", border: `1px solid ${assetData.color}44` }}>
+            {assetData.icon}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -233,22 +358,22 @@ function AlarmCard({ t, alarm, currentPrice, onDelete, onToggle, formatPrice, re
                 {isAbove ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
                 {isAbove ? "Üzerine çıkınca" : "Altına düşünce"}
               </span>
-              {!alarm.active && <span className={`text-xs ${t.tagBg} ${t.textSecond} px-2 py-0.5 rounded-full`}>Tetiklendi</span>}
+              {!alarm.is_active && <span className={`text-xs ${t.tagBg} ${t.textSecond} px-2 py-0.5 rounded-full`}>Tetiklendi</span>}
             </div>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
-              <span className={`text-sm ${t.textSecond}`}>Hedef: <span className={`${t.textPrimary} font-semibold`}>{formatPrice(alarm.targetPrice)} {alarm.unit}</span></span>
-              {currentPrice && <span className={`text-sm ${t.textSecond}`}>Şimdi: <span style={{ color: alarm.assetColor }} className="font-semibold">{formatPrice(currentPrice)} {alarm.unit}</span></span>}
+              <span className={`text-sm ${t.textSecond}`}>Hedef: <span className={`${t.textPrimary} font-semibold`}>{formatPrice(alarm.target_price)} {assetData.unit}</span></span>
+              {currentPrice && <span className={`text-sm ${t.textSecond}`}>Şimdi: <span style={{ color: assetData.color }} className="font-semibold">{formatPrice(currentPrice)} {assetData.unit}</span></span>}
             </div>
             <div className="flex items-center gap-3 mt-2">
-              {alarm.notifyBrowser && <span className={`flex items-center gap-1 text-[11px] ${t.textMuted}`}><Smartphone size={11} /> Tarayıcı</span>}
-              {alarm.notifyEmail && <span className={`flex items-center gap-1 text-[11px] ${t.textMuted}`}><Mail size={11} /> E-posta</span>}
-              <span className={`flex items-center gap-1 text-[11px] ${t.textMuted}`}><Clock size={11} />{relativeTime(alarm.createdAt)}</span>
+              {alarm.notify_browser && <span className={`flex items-center gap-1 text-[11px] ${t.textMuted}`}><Smartphone size={11} /> Tarayıcı</span>}
+              {alarm.notify_email && <span className={`flex items-center gap-1 text-[11px] ${t.textMuted}`}><Mail size={11} /> E-posta</span>}
+              <span className={`flex items-center gap-1 text-[11px] ${t.textMuted}`}><Clock size={11} />{relativeTime(alarm.created_at)}</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={onToggle} className={`p-2 rounded-lg border transition-all ${alarm.active ? "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20" : `${t.cardBorder} ${t.deepCardBg} ${t.textSecond} hover:border-emerald-500/40 hover:text-emerald-400`}`}>
-            {alarm.active ? <BellOff size={16} /> : <Bell size={16} />}
+          <button onClick={onToggle} className={`p-2 rounded-lg border transition-all ${alarm.is_active ? "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20" : `${t.cardBorder} ${t.deepCardBg} ${t.textSecond} hover:border-emerald-500/40 hover:text-emerald-400`}`}>
+            {alarm.is_active ? <BellOff size={16} /> : <Bell size={16} />}
           </button>
           <button onClick={onDelete} className="p-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all">
             <Trash2 size={16} />
@@ -259,28 +384,28 @@ function AlarmCard({ t, alarm, currentPrice, onDelete, onToggle, formatPrice, re
   );
 }
 
-function NotificationCard({ t, notif, onDelete, formatPrice, relativeTime }) {
+function NotificationCard({ t, notif, assetData, onDelete, formatPrice, relativeTime }) {
   const isAbove = notif.condition === "above";
   return (
-    <div className={`rounded-2xl border p-5 transition-all ${!notif.read ? `border-blue-500/40 ${t.cardBg}` : `${t.cardBorder} ${t.deepCardBg}`}`}>
+    <div className={`rounded-2xl border p-5 transition-all ${!notif.is_read ? `border-blue-500/40 ${t.cardBg}` : `${t.cardBorder} ${t.deepCardBg}`}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4 flex-1">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl text-lg flex-shrink-0"
-            style={{ backgroundColor: notif.assetColor + "22", border: `1px solid ${notif.assetColor}44` }}>
-            {notif.assetIcon}
+            style={{ backgroundColor: assetData.color + "22", border: `1px solid ${assetData.color}44` }}>
+            {assetData.icon}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`font-bold ${t.textPrimary}`}>{notif.asset}</span>
-              {!notif.read && <span className="w-2 h-2 rounded-full bg-blue-500 inline-block animate-pulse" />}
+              {!notif.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 inline-block animate-pulse" />}
               <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${isAbove ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
                 {isAbove ? <TrendingUp size={11} /> : <TrendingDown size={11} />} Alarm Tetiklendi
               </span>
             </div>
             <p className={`text-sm ${t.textSecond} mt-0.5`}>
-              Hedef <span className={`${t.textPrimary} font-semibold`}>{formatPrice(notif.targetPrice)}</span> seviyesi geçildi. Anlık: <span style={{ color: notif.assetColor }} className="font-semibold">{formatPrice(notif.currentPrice)}</span>
+              Hedef <span className={`${t.textPrimary} font-semibold`}>{formatPrice(notif.target_price)}</span> seviyesi geçildi. Anlık: <span style={{ color: assetData.color }} className="font-semibold">{formatPrice(notif.triggered_price)}</span>
             </p>
-            <span className={`flex items-center gap-1 text-[11px] ${t.textMuted} mt-1`}><Clock size={11} />{relativeTime(notif.timestamp)}</span>
+            <span className={`flex items-center gap-1 text-[11px] ${t.textMuted} mt-1`}><Clock size={11} />{relativeTime(notif.triggered_at)}</span>
           </div>
         </div>
         <button onClick={onDelete} className={`p-2 rounded-lg border ${t.cardBorder} ${t.textSecond} hover:text-red-400 hover:border-red-500/30 transition-all flex-shrink-0`}><X size={15} /></button>
@@ -302,7 +427,6 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           <button onClick={onClose} className={`p-1.5 ${t.textMuted} hover:${t.textPrimary} transition-colors`}><X size={18} /></button>
         </div>
 
-        {/* Varlık */}
         <div className="mb-4">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Varlık</label>
           <div className="relative">
@@ -331,7 +455,6 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           {currentPrice && <p className={`text-xs ${t.textMuted} mt-1.5 px-1`}>Anlık: <span style={{ color: selectedAsset.color }} className="font-semibold">{formatPrice(currentPrice)} {selectedAsset.unit}</span></p>}
         </div>
 
-        {/* Koşul */}
         <div className="mb-4">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Koşul</label>
           <div className="grid grid-cols-2 gap-2">
@@ -344,7 +467,6 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           </div>
         </div>
 
-        {/* Hedef Fiyat */}
         <div className="mb-5">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Hedef Fiyat ({selectedAsset.unit})</label>
           <div className={`flex items-center rounded-xl border ${t.inputBorder} ${t.inputBg} px-4 focus-within:border-blue-500 transition-colors`}>
@@ -355,7 +477,6 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           </div>
         </div>
 
-        {/* Bildirim kanalları */}
         <div className="mb-6">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-3 uppercase tracking-wider`}>Bildirim Kanalları</label>
           <div className="space-y-2">
