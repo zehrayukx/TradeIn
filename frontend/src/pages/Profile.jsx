@@ -29,6 +29,14 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Mevcut state'lerin arasına ekle
+const [followModal, setFollowModal] = useState({
+  isOpen: false,
+  type: '', // 'followers' veya 'following'
+  data: [],
+  loading: false
+});
+
   useEffect(() => {
     const fetchUserData = async () => {
       setIsLoading(true);
@@ -94,7 +102,7 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
     if (!token) return;
     try {
       const response = await axios.post(`http://127.0.0.1:8000/takip-et/${profileData.id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      const isNowFollowing = response.data.mesaj.includes('takip edildi');
+      const isNowFollowing = response.data.mesaj.includes('Takip edildi');
       setIsFollowed(isNowFollowing);
       setProfileData(prev => ({ ...prev, followers: isNowFollowing ? prev.followers + 1 : prev.followers - 1 }));
     } catch (error) { console.error(error); }
@@ -110,6 +118,26 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
     } catch (error) { console.error(error); }
   };
 
+const openFollowModal = async (type) => {
+  setFollowModal({ isOpen: true, type, data: [], loading: true });
+  try {
+    const token = localStorage.getItem('tradein_token');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const endpointSuffix = type === 'followers' ? 'takipciler' : 'takip-edilenler';
+    const url = isOwnProfile 
+      ? `http://127.0.0.1:8000/profilim/${endpointSuffix}` 
+      : `http://127.0.0.1:8000/kullanici/${username}/${endpointSuffix}`;
+
+    const response = await axios.get(url, { headers });
+    setFollowModal(prev => ({ ...prev, data: response.data, loading: false }));
+  } catch (error) {
+    console.error("Kullanıcı listesi çekilemedi:", error);
+    setFollowModal(prev => ({ ...prev, loading: false }));
+  }
+};
+
+
+  
   const handleUpdatePost = async () => {
     if (!editPostContent.trim()) return;
     const token = localStorage.getItem('tradein_token');
@@ -179,10 +207,70 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
                   )}
                 </div>
 
-                <div className={`flex justify-center md:justify-start gap-10 mb-6 text-sm ${t.textPrimary}`}>
+                {/* RAKAMLAR VE DROPDOWN KISMI */}
+                <div className={`relative flex justify-center md:justify-start gap-10 mb-6 text-sm ${t.textPrimary}`}>
                   <span><strong>{profileData.postsCount}</strong> <span className={t.textSecond}>gönderi</span></span>
-                  <span><strong>{profileData.followers?.toLocaleString('tr-TR')}</strong> <span className={t.textSecond}>takipçi</span></span>
-                  <span><strong>{profileData.following?.toLocaleString('tr-TR')}</strong> <span className={t.textSecond}>takip</span></span>
+                  
+                  <button onClick={() => openFollowModal('followers')} className={`hover:${t.textSecond} transition-colors focus:outline-none`}>
+                    <strong>{profileData.followers?.toLocaleString('tr-TR')}</strong> <span className={t.textSecond}>takipçi</span>
+                  </button>
+
+                  <button onClick={() => openFollowModal('following')} className={`hover:${t.textSecond} transition-colors focus:outline-none`}>
+                    <strong>{profileData.following?.toLocaleString('tr-TR')}</strong> <span className={t.textSecond}>takip</span>
+                  </button>
+
+                  {/* Dropdown Menü Başlangıcı */}
+                  {followModal?.isOpen && (
+                    <>
+                      {/* Ekranın boş bir yerine tıklayınca menünün kapanmasını sağlayan görünmez katman */}
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setFollowModal({ ...followModal, isOpen: false })}
+                      />
+                      
+                      {/* Dropdown Kutusu (Sayıların hemen altında açılır) */}
+                      <div className={`absolute top-full left-1/2 md:left-0 transform -translate-x-1/2 md:translate-x-0 mt-2 w-64 md:w-72 max-h-[350px] flex flex-col ${t.modalBg} border ${t.cardBorder} rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
+                        
+                        {/* Dropdown Başlığı */}
+                        <div className={`px-4 py-3 border-b ${t.divider} flex justify-between items-center bg-opacity-50`}>
+                          <span className="text-xs font-black tracking-wider text-blue-500 uppercase">
+                            {followModal.type === 'followers' ? 'Takipçiler' : 'Takip Edilenler'}
+                          </span>
+                          <button onClick={() => setFollowModal({ ...followModal, isOpen: false })} className={`p-1 ${t.textSecond} hover:text-red-500 rounded-md transition-colors`}>
+                            <X size={14} />
+                          </button>
+                        </div>
+
+                        {/* Kaydırılabilir Kullanıcı Listesi */}
+                        <div className="p-2 overflow-y-auto flex-1 custom-scrollbar">
+                          {followModal.loading ? (
+                            <div className="text-center py-8 text-blue-500 animate-pulse text-sm font-medium">Kullanıcılar yükleniyor...</div>
+                          ) : followModal.data.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {followModal.data.map((user, index) => (
+                                <Link 
+                                  key={index} 
+                                  to={`/profile/${user.username}`} 
+                                  onClick={() => setFollowModal({ ...followModal, isOpen: false })} 
+                                  className={`flex items-center gap-3 p-2 rounded-xl hover:${t.hoverBg} transition-all`}
+                                >
+                                  <img src={user.avatar || `https://ui-avatars.com/api/?name=${user.username || 'U'}&background=random`} alt={user.username} className={`w-10 h-10 rounded-full object-cover border ${t.cardBorder}`} />
+                                  <div className="flex flex-col overflow-hidden">
+                                    <span className={`font-bold text-sm leading-tight truncate ${t.textPrimary}`}>{user.name || user.username}</span>
+                                    <span className={`text-xs truncate ${t.textSecond}`}>@{user.username}</span>
+                                  </div>
+                                </Link>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className={`text-center py-8 text-sm ${t.textMuted} italic`}>
+                              {followModal.type === 'followers' ? 'Henüz takipçisi yok.' : 'Henüz kimseyi takip etmiyor.'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {isOwnProfile && isEditingProfile ? (

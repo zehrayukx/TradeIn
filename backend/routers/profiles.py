@@ -98,3 +98,29 @@ def onerilen_kullanicilar(db: Session = Depends(database.get_db), current_user: 
         user_data.append({"id": u.id, "name": u.name if u.name else u.username.upper(), "username": u.username.lower(), "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff", "followers": followers_count, "is_following": is_following})
     user_data.sort(key=lambda x: x["followers"], reverse=True)
     return user_data[:4]
+
+# 1. Kendi profilin için takipçiler ve takip edilenler
+@router.get("/profilim/takipciler")
+def kendi_takipcilerim(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    followers = db.query(models.User).join(models.Follow, models.Follow.follower_id == models.User.id).filter(models.Follow.followed_id == current_user.id).all()
+    return [{"username": u.username, "name": u.name if u.name else u.username.upper(), "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff"} for u in followers]
+
+@router.get("/profilim/takip-edilenler")
+def kendi_takip_ettiklerim(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    following = db.query(models.User).join(models.Follow, models.Follow.followed_id == models.User.id).filter(models.Follow.follower_id == current_user.id).all()
+    return [{"username": u.username, "name": u.name if u.name else u.username.upper(), "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff"} for u in following]
+
+# 2. Başka bir kullanıcının profili için takipçiler ve takip edilenler
+@router.get("/kullanici/{username}/takipciler")
+def kullanici_takipcileri(username: str, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user: raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    followers = db.query(models.User).join(models.Follow, models.Follow.follower_id == models.User.id).filter(models.Follow.followed_id == user.id).all()
+    return [{"username": u.username, "name": u.name if u.name else u.username.upper(), "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff"} for u in followers]
+
+@router.get("/kullanici/{username}/takip-edilenler")
+def kullanici_takip_ettikleri(username: str, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user: raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    following = db.query(models.User).join(models.Follow, models.Follow.followed_id == models.User.id).filter(models.Follow.follower_id == user.id).all()
+    return [{"username": u.username, "name": u.name if u.name else u.username.upper(), "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff"} for u in following]

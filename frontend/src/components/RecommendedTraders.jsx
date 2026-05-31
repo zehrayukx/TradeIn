@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-const RecommendedTraders = () => {
+const RecommendedTraders = ({ onFollowUpdate }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
   const [traders, setTraders] = useState([]);
@@ -38,6 +38,13 @@ const RecommendedTraders = () => {
       });
       const isNowFollowing = response.data.mesaj.includes("takip edildi");
       setTraders(prev => prev.map(tr => tr.id === userId ? { ...tr, is_following: isNowFollowing } : tr));
+      
+      // 🚀 EKLENEN TEK FONKSİYONELİTE BURASI: 
+      // Anasayfaya "Ben butona bastım, postları güncelle" sinyali gönderiliyor
+      if (onFollowUpdate) {
+        onFollowUpdate();
+      }
+
     } catch (error) {
       console.error("Takip hatası:", error);
     }

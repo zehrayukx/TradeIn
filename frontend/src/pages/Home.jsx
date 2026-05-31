@@ -13,6 +13,8 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   const tabs = isLoggedIn
     ? ['Trendler', 'Takip Edilenler', 'Borsa', 'Altın', 'Gümüş', 'Bitcoin', 'Dolar', 'Euro', 'Sterlin']
     : ['Trendler', 'Borsa', 'Altın', 'Gümüş', 'Bitcoin', 'Dolar', 'Euro', 'Sterlin'];
@@ -75,6 +77,11 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
     } catch (error) { console.error(error); } finally { setIsPublishing(false); }
   };
 
+  // Bu fonksiyon tetiklendiğinde sayfa arkadan postları güncelleyecek
+  const handleFollowUpdate = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   useEffect(() => {
     const fetchPosts = async () => {
       setLoading(true);
@@ -99,7 +106,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
       } catch (error) { setPosts([]); } finally { setLoading(false); }
     };
     fetchPosts();
-  }, [activeTab, isLoggedIn, searchQuery]);
+  }, [activeTab, isLoggedIn, searchQuery, refreshTrigger]); // refreshTrigger eklendi
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -173,7 +180,8 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
 
         <aside className="w-[300px] hidden lg:block py-6 pr-6 shrink-0">
           <TrendSidebar onTrendClick={handleTrendSidebarClick} />
-          <RecommendedTraders />
+          {/* SİHRİN GERÇEKLEŞTİĞİ YER: Prop olarak fırlatıyoruz */}
+          <RecommendedTraders onFollowUpdate={handleFollowUpdate} />
         </aside>
       </div>
 
