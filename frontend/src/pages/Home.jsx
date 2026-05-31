@@ -7,6 +7,7 @@ import TrendSidebar from '../components/TrendSidebar';
 import RecommendedTraders from '../components/RecommendedTraders';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import TickerTape from '../components/TickerTape'; // TICKERTAPE EKLENDI
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
 const Home = ({ isLoggedIn, setIsLoggedIn }) => {
@@ -132,6 +133,9 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
       />
+
+      {/* TICKERTAPE BURAYA EKLENDI */}
+      <TickerTape />
 
       <div className="flex flex-1 w-full">
         <Sidebar isOpen={isSidebarOpen} isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />

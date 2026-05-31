@@ -20,17 +20,16 @@ const assetTypes = [
   { name: "Borsa",   icon: "📈", color: "#34d399", unit: "BIST" },
 ];
 
-const mockPrices = { Bitcoin: 2850000, Dolar: 32.45, Euro: 35.12, Sterlin: 41.22, Altın: 1985.5, Gümüş: 24.8, Borsa: 10842 };
+// Başlangıç referans fiyatları (CoinGecko'da olmayanlar için)
+const BASE_PRICES = { Bitcoin: 67000, Dolar: 32.45, Euro: 35.12, Sterlin: 41.22, Altın: 1985.5, Gümüş: 24.8, Borsa: 10842 };
 
 function Alarms({ isLoggedIn, setIsLoggedIn }) {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
 
-  // 🚀 DÜZELTME 1: localStorage sildik, boş dizi ile başlıyor
   const [alarms, setAlarms] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  
-  const [prices, setPrices] = useState(mockPrices);
+  const [prices, setPrices] = useState(BASE_PRICES);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [user, setUser] = useState(null);
@@ -47,7 +46,7 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
   const priceIntervalRef = useRef(null);
   const checkedAlarmsRef = useRef(new Set());
   
-  // 🚀 DÜZELTME 2: Alarmları ve Bildirimleri API'den Çek
+  // 1. KULLANICI VERİLERİNİ ÇEK
   const fetchAlarmsData = useCallback(async () => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -64,22 +63,65 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     }
   }, []);
 
-  // Kullanıcı giriş yaptıysa sayfayı açtığında verileri çek
   useEffect(() => {
     if (isLoggedIn || localStorage.getItem("tradein_token")) {
       fetchAlarmsData();
     }
   }, [fetchAlarmsData, isLoggedIn]);
 
-  // Fiyat dalgalanma simülasyonu
+  // 2. COINGECKO'DAN GERÇEK VERİLERİ ÇEK
+  // 2. GERÇEK ZAMANLI PİYASA VERİLERİNİ ÇEK (Kripto ve Döviz)
   useEffect(() => {
-    priceIntervalRef.current = setInterval(() => {
-      setPrices(prev => Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, v * (1 + (Math.random() - 0.5) * 0.002)])));
-    }, 3000);
-    return () => clearInterval(priceIntervalRef.current);
-  }, []);
+    const fetchLivePrices = async () => {
+      try {
+        // Tıpkı Markets sayfasındaki gibi Promise.all ile paralel istek atıyoruz
+        const [fxResponse, cryptoResponse] = await Promise.all([
+          fetch("https://open.er-api.com/v6/latest/USD"),
+          fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+        ]);
 
-  // 🚀 DÜZELTME 3: Alarm Tetiklendiğinde API'ye Bildir
+        const fxData = await fxResponse.json();
+        const cryptoData = await cryptoResponse.json();
+
+        setPrices(prev => {
+          const newPrices = { ...prev };
+
+          // Kripto Güncellemesi (Bitcoin)
+          if (cryptoData && cryptoData.bitcoin) {
+            newPrices.Bitcoin = cryptoData.bitcoin.usd;
+          }
+
+          // Döviz Güncellemesi (Dolar, Euro, Sterlin)
+          if (fxData && fxData.rates) {
+            const tryRate = fxData.rates.TRY;
+            const eurRate = fxData.rates.EUR;
+            const gbpRate = fxData.rates.GBP;
+
+            // Çapraz kurları ER-API'nin USD tabanına göre hesaplıyoruz
+            newPrices.Dolar = tryRate;
+            newPrices.Euro = tryRate / eurRate;
+            newPrices.Sterlin = tryRate / gbpRate;
+          }
+
+          return newPrices;
+        });
+      } catch (error) {
+        console.error("Canlı fiyatlar çekilemedi, sistem eski verilerle/fallback ile devam ediyor:", error);
+      }
+    };
+
+    // İlk açılışta verileri çek
+    fetchLivePrices();
+    
+    // Her 60 saniyede bir verileri güncelle (Rate limit'e takılmamak için ideal süre)
+    const priceInterval = setInterval(fetchLivePrices, 60000);
+    
+    return () => clearInterval(priceInterval);
+  }, []); // Boş dizi sayesinde React render döngülerinden etkilenmez!
+  // 3. EKRANIN CANLI KALMASI İÇİN MİKRO DALGALANMA SİMÜLASYONU
+
+
+  // 4. ALARM TETİKLEYİCİ
   const triggerAlarm = useCallback(async (alarm, currentPrice) => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -95,7 +137,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // API'ye yolladıktan sonra arayüzü güncelle
       fetchAlarmsData();
 
       if (alarm.notify_browser && notifPermission === "granted") {
@@ -130,7 +171,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     setNotifPermission(perm);
   };
 
-  // 🚀 DÜZELTME 4: Yeni Alarm Kurarken API'ye Yolla
   const handleCreateAlarm = async () => {
     if (!targetPrice || isNaN(Number(targetPrice)) || Number(targetPrice) <= 0) return;
     
@@ -148,7 +188,7 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      fetchAlarmsData(); // Listeyi güncelle
+      fetchAlarmsData();
       setShowCreateModal(false); 
       setTargetPrice(""); 
       setCondition("above");
@@ -157,7 +197,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     }
   };
 
-  // Alarm Aç/Kapat Toggle
   const handleToggleAlarm = async (alarmId) => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -171,7 +210,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     }
   };
 
-  // Alarm Sil
   const handleDeleteAlarm = async (alarmId) => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -185,7 +223,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     }
   };
 
-  // Bildirim Sil
   const handleDeleteNotif = async (notifId) => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -199,7 +236,6 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     }
   };
 
-  // Tüm Bildirimleri Okundu İşaretle
   const handleMarkAsRead = async () => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;

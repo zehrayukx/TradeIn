@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { CalendarDays, CheckCircle2, LineChart, PlusCircle, Trash2, Wallet, X } from "lucide-react";
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import TickerTape from '../components/TickerTape'; // TICKERTAPE EKLENDI
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
 const assetTypes = [
@@ -145,6 +146,9 @@ function Portfolio({ isLoggedIn, setIsLoggedIn }) {
   return (
     <div className={`min-h-screen ${t.pageBg} ${t.textPrimary} flex flex-col relative transition-colors duration-300`}>
       <Navbar toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isLoggedIn={isUserReallyLoggedIn} handleLogout={handleLogout} user={user} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+      
+      {/* TICKERTAPE BURAYA EKLENDI */}
+      <TickerTape />
 
       <div className="flex flex-1 w-full">
         <Sidebar isOpen={isSidebarOpen} isLoggedIn={isUserReallyLoggedIn} setIsLoggedIn={setIsLoggedIn} />

@@ -48,26 +48,92 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
 
   const handleLogout = () => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); };
 
-  useEffect(() => {
+useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
+        
+        // 1. Kendi servislerinden veya mock verilerden temel yapıyı al
         const [marketData, newsData, calendarData, sentimentData] = await Promise.all([
-          getMarkets({ category: selectedCategory, sort: selectedSort, search: searchQuery, onlyFavorites: selectedSort === "favorites" }),
-          getMarketNews(), getMarketCalendar(), getMarketSentiment(),
+          getMarkets({ category: selectedCategory, sort: selectedSort, search: searchQuery, onlyFavorites: selectedSort === "favorites" }).catch(() => []),
+          getMarketNews().catch(() => []), 
+          getMarketCalendar().catch(() => []), 
+          getMarketSentiment().catch(() => null),
         ]);
-        setMarkets(Array.isArray(marketData) && marketData.length > 0 ? marketData : mockMarkets);
+
+        let combinedMarkets = Array.isArray(marketData) && marketData.length > 0 ? [...marketData] : [...mockMarkets];
+
+        // 2. EXCHANGE-RATE API (Döviz Verileri) ve COINGECKO API (Kripto Verileri) aynı anda çek
+        try {
+          const [fxResponse, cryptoResponse] = await Promise.all([
+            fetch("https://open.er-api.com/v6/latest/USD"),
+            fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd,try&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true")
+          ]);
+
+          const fxData = await fxResponse.json();
+          const cryptoData = await cryptoResponse.json();
+
+          // -- DÖVİZ KISMI (USD/TRY vb.) --
+          if (fxData && fxData.rates) {
+            const usdTryRate = fxData.rates.TRY;
+            const usdIndex = combinedMarkets.findIndex(m => m.symbol === "USDTRY");
+            if (usdIndex !== -1) {
+              combinedMarkets[usdIndex].price = usdTryRate.toFixed(4);
+              combinedMarkets[usdIndex].tryPrice = `₺${usdTryRate.toFixed(4)}`;
+            } else {
+              combinedMarkets.push({
+                name: "USD/TRY", symbol: "USDTRY", category: "Döviz", price: usdTryRate.toFixed(4), 
+                tryPrice: `₺${usdTryRate.toFixed(4)}`, change: 0, marketCap: "-", volume: "-", 
+                logo: "https://ui-avatars.com/api/?name=US&background=2563eb&color=fff"
+              });
+            }
+          }
+
+          // -- KRİPTO KISMI (Bitcoin ve Ethereum) --
+          if (cryptoData) {
+            // Bitcoin Güncellemesi
+            if (cryptoData.bitcoin) {
+              const btcIndex = combinedMarkets.findIndex(m => m.symbol === "BTC");
+              if (btcIndex !== -1) {
+                combinedMarkets[btcIndex].price = `$${cryptoData.bitcoin.usd.toLocaleString('en-US')}`;
+                combinedMarkets[btcIndex].tryPrice = `₺${cryptoData.bitcoin.try.toLocaleString('tr-TR')}`;
+                combinedMarkets[btcIndex].change = cryptoData.bitcoin.usd_24h_change.toFixed(2);
+                combinedMarkets[btcIndex].marketCap = `$${(cryptoData.bitcoin.usd_market_cap / 1e9).toFixed(2)}B`;
+                // volume vs. eklenebilir.
+              }
+            }
+            // Ethereum Güncellemesi
+            if (cryptoData.ethereum) {
+              const ethIndex = combinedMarkets.findIndex(m => m.symbol === "ETH");
+              if (ethIndex !== -1) {
+                combinedMarkets[ethIndex].price = `$${cryptoData.ethereum.usd.toLocaleString('en-US')}`;
+                combinedMarkets[ethIndex].tryPrice = `₺${cryptoData.ethereum.try.toLocaleString('tr-TR')}`;
+                combinedMarkets[ethIndex].change = cryptoData.ethereum.usd_24h_change.toFixed(2);
+                combinedMarkets[ethIndex].marketCap = `$${(cryptoData.ethereum.usd_market_cap / 1e9).toFixed(2)}B`;
+              }
+            }
+          }
+        } catch (apiError) {
+          console.error("Harici API'lerden veri çekilemedi:", apiError);
+          // Hata durumunda uygulama çökmez, eski (mock) verilerle devam eder.
+        }
+
+        // 3. State'leri Güncelle
+        setMarkets(combinedMarkets);
         setNews(Array.isArray(newsData) && newsData.length > 0 ? newsData : mockNews);
         setCalendar(Array.isArray(calendarData) && calendarData.length > 0 ? calendarData : mockCalendar);
         setSentiment(sentimentData || { score: 57, label: "Nötr", yesterday: "54%", weekly: "+3%" });
-      } catch {
-        setMarkets(mockMarkets); setNews(mockNews); setCalendar(mockCalendar);
-        setSentiment({ score: 57, label: "Nötr", yesterday: "54%", weekly: "+3%" });
-      } finally { setLoading(false); }
-    }
-    const timer = setTimeout(fetchData, 300);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, selectedSort, searchQuery]);
+        
+} catch (error) {
+    setMarkets(mockMarkets); 
+    // ...
+  } finally { 
+    setLoading(false); 
+  }
+}
+    
+    fetchData();
+  }, []);
 
   const filteredMarkets = useMemo(() => {
     let list = [...markets];
