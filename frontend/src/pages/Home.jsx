@@ -115,7 +115,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
       if (isLoggedIn && token) {
         try {
           const response = await axios.get('http://127.0.0.1:8000/profilim', { headers: { Authorization: `Bearer ${token}` } });
-          setUser({ name: response.data.name });
+          setUser({ name: response.data.username.replace('@', '') });
         } catch (error) { console.error(error); }
       }
     };
@@ -170,7 +170,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
                     <button onClick={() => { setSearchQuery(""); setActiveTab('Trendler'); }} className="text-sm underline hover:text-blue-300">Aramayı Temizle</button>
                   </div>
                 )}
-                {posts.map((post) => <FeedCard key={post.id} post={post} onLike={handleLike} />)}
+                {posts.map((post) => <FeedCard key={post.id} post={post} onLike={handleLike} currentUser={user} />)}
               </>
             ) : (
               <div className={`text-center py-20 ${t.cardBg} rounded-2xl border border-dashed ${t.cardBorder}`}>

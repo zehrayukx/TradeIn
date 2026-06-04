@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Heart, Share2, MoreHorizontal, Send, Edit2 } from 'lucide-react';
+import { MessageSquare, Heart, Share2, MoreHorizontal, Send, Edit2, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-const FeedCard = ({ post, onLike, onEdit }) => {
+
+
+// currentUser prop'unu ekledik
+const FeedCard = ({ post, onLike, onEdit, currentUser }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
   const [showComments, setShowComments] = useState(false);
@@ -55,6 +58,35 @@ const FeedCard = ({ post, onLike, onEdit }) => {
       alert("Yorum gönderilirken bir hata oluştu.");
     }
   };
+
+  // YORUM SİLME FONKSİYONU
+  const handleDeleteComment = async (commentId) => {
+    const isConfirmed = window.confirm("Bu yorumu silmek istediğinize emin misiniz?");
+    if (!isConfirmed) return;
+
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
+
+    try {
+      await axios.delete(`http://127.0.0.1:8000/yorum/${commentId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Silme başarılıysa state'leri güncelle
+      setComments(prevComments => prevComments.filter(comment => comment.id !== commentId));
+      setLocalCommentCount(prev => Math.max(0, prev - 1)); // Yorum sayısını 1 azalt
+      
+    } catch (error) {
+      console.error("Yorum silinirken hata oluştu:", error);
+      if (error.response && error.response.status === 403) {
+        alert("Sadece kendi yorumlarınızı silebilirsiniz!");
+      } else {
+        alert("Yorum silinirken bir hata oluştu.");
+      }
+    }
+  };
+
+console.log("Aktif Kullanıcı: ", currentUser);
 
   return (
     <div className={`${t.cardBg} border ${t.cardBorder} rounded-2xl mb-4 overflow-hidden transition-all hover:border-blue-500/30 shadow-lg`}>
@@ -124,19 +156,36 @@ const FeedCard = ({ post, onLike, onEdit }) => {
                 <div className="text-center text-xs text-blue-500 py-4 animate-pulse">Yorumlar yükleniyor...</div>
               ) : comments.length > 0 ? (
                 comments.map(comment => (
-                  <div key={comment.id} className="flex gap-3 items-start">
-                    <img src={comment.avatar} alt={comment.yazar} className={`w-8 h-8 rounded-full border ${t.cardBorder} mt-1`} />
-                    <div className={`${t.cardBg2} p-3 rounded-2xl rounded-tl-none flex-1 border ${t.cardBorder}`}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className={`font-bold text-xs ${t.textPrimary}`}>{comment.yazar.toUpperCase()}</span>
-                        <span className={`text-[10px] ${t.textMuted}`}>
-                          {new Date(comment.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <p className={`text-sm ${t.textSecond} leading-relaxed`}>{comment.content}</p>
-                    </div>
-                  </div>
-                ))
+  // "group" class'ı sayesinde farenin bu yorum bloğunda olup olmadığını anlıyoruz
+  <div key={comment.id} className="flex gap-3 items-start group">
+    <img src={comment.avatar} alt={comment.yazar} className={`w-8 h-8 rounded-full border ${t.cardBorder} mt-1`} />
+    
+    {/* Yorum Balonu */}
+    <div className={`${t.cardBg2} p-3 rounded-2xl rounded-tl-none flex-1 border ${t.cardBorder} relative`}>
+      <div className="flex justify-between items-center mb-1">
+        <div className="flex items-center gap-2">
+          <span className={`font-bold text-xs ${t.textPrimary}`}>{comment.yazar.toUpperCase()}</span>
+          <span className={`text-[10px] ${t.textMuted}`}>
+            {new Date(comment.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+        
+        {/* ÇÖP KUTUSU SİMGESİ */}
+        {currentUser && currentUser.name.toLowerCase() === comment.yazar.toLowerCase() && (
+          <button 
+            onClick={() => handleDeleteComment(comment.id)}
+            // opacity-0 ve group-hover:opacity-100 sayesinde sadece fareyle üzerine gelince belirir
+            className="text-red-500/50 hover:text-red-600 p-1 rounded-full hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+            title="Yorumu Sil"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
+      </div>
+      <p className={`text-sm ${t.textSecond} leading-relaxed`}>{comment.content}</p>
+    </div>
+  </div>
+))
               ) : (
                 <div className={`text-center text-xs ${t.textMuted} py-4`}>Bu gönderiye ilk yorumu sen yap!</div>
               )}

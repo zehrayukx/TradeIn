@@ -116,3 +116,18 @@ def akis(db: Session = Depends(database.get_db), current_user: models.User = Dep
         user_like = db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first()
         formatted_posts.append({"post_id": p.id, "icerik": p.content, "yazar": u, "tarih": p.created_at, "likes": like_count, "comments": comment_count, "isLiked": user_like is not None})
     return formatted_posts
+
+@router.delete("/yorum/{yorum_id}")
+def yorum_sil(yorum_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    yorum = db.query(models.Comment).filter(models.Comment.id == yorum_id).first()
+    
+    if not yorum: 
+        raise HTTPException(status_code=404, detail="Yorum bulunamadı")
+    
+    # Sadece yorumu yazan kişi silebilir
+    if yorum.user_id != current_user.id: 
+        raise HTTPException(status_code=403, detail="Bu yorumu silme yetkiniz yok")
+        
+    db.delete(yorum)
+    db.commit()
+    return {"mesaj": "Yorum başarıyla silindi"}
