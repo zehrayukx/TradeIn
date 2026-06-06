@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Bell, BellOff, Plus, Trash2, X, CheckCircle2, AlertTriangle,
   TrendingUp, TrendingDown, Clock, Mail, Smartphone, ChevronDown,
-  Activity, Target,
+  Activity, Target,Edit2
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
@@ -32,6 +32,7 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
   const [prices, setPrices] = useState(BASE_PRICES);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("alarms");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -41,6 +42,7 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [notifyBrowser, setNotifyBrowser] = useState(true);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
+    const [editingAlarmId, setEditingAlarmId] = useState(null); // Düzenlenen alarmın ID'sini tutacak
   const [notifPermission, setNotifPermission] = useState(typeof Notification !== "undefined" ? Notification.permission : "default");
   
   const priceIntervalRef = useRef(null);
@@ -171,32 +173,52 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     setNotifPermission(perm);
   };
 
-  const handleCreateAlarm = async () => {
+const handleCreateAlarm = async () => {
     if (!targetPrice || isNaN(Number(targetPrice)) || Number(targetPrice) <= 0) return;
     
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
 
     try {
-      await axios.post("http://127.0.0.1:8000/alarm-kur", {
+      const payload = {
         asset: selectedAsset.name,
         target_price: Number(targetPrice),
         condition: condition,
         notify_email: notifyEmail,
         notify_browser: notifyBrowser
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      };
+
+      if (editingAlarmId) {
+        // DÜZENLEME İŞLEMİ
+        await axios.put(`http://127.0.0.1:8000/alarm-duzenle/${editingAlarmId}`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        // YENİ ALARM İŞLEMİ
+        await axios.post("http://127.0.0.1:8000/alarm-kur", payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
 
       fetchAlarmsData();
       setShowCreateModal(false); 
       setTargetPrice(""); 
       setCondition("above");
+      setEditingAlarmId(null); // İşlem bitince sıfırla
     } catch (error) {
-      console.error("Alarm kurulamadı:", error);
+      console.error("Alarm işlemi başarısız:", error);
     }
   };
-
+const openEditModal = (alarm) => {
+    const asset = assetTypes.find(a => a.name === alarm.asset) || assetTypes[0];
+    setSelectedAsset(asset);
+    setTargetPrice(alarm.target_price);
+    setCondition(alarm.condition);
+    setNotifyEmail(alarm.notify_email);
+    setNotifyBrowser(alarm.notify_browser);
+    setEditingAlarmId(alarm.id); // Düzenleme moduna geçir
+    setShowCreateModal(true);
+  };
   const handleToggleAlarm = async (alarmId) => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -295,7 +317,11 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
               </h1>
               <p className={`${t.textSecond} text-sm mt-1`}>Varlık fiyatlarına göre otomatik bildirim alın</p>
             </div>
-            <button onClick={() => setShowCreateModal(true)}
+            <button onClick={() => {
+                setEditingAlarmId(null); // Düzenleme modundan çık
+                setTargetPrice(""); 
+                setShowCreateModal(true); 
+              }}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg">
               <Plus size={18} /> Alarm Kur
             </button>
@@ -339,10 +365,12 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
             <div className="space-y-3">
               {alarms.map(alarm => {
                 const assetData = assetTypes.find(a => a.name === alarm.asset) || assetTypes[0];
+                // Alarms bileşeni içindeki .map() kısmı
                 return (
                   <AlarmCard key={alarm.id} t={t} alarm={alarm} assetData={assetData} currentPrice={prices[alarm.asset]}
                     onDelete={() => handleDeleteAlarm(alarm.id)}
                     onToggle={() => handleToggleAlarm(alarm.id)}
+                    onEdit={() => openEditModal(alarm)} // <-- Bu satırı ekle
                     formatPrice={formatPrice} relativeTime={relativeTime} />
                 );
               })}
@@ -371,13 +399,15 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
           notifyEmail={notifyEmail} setNotifyEmail={setNotifyEmail} notifyBrowser={notifyBrowser} setNotifyBrowser={setNotifyBrowser}
           assetDropdownOpen={assetDropdownOpen} setAssetDropdownOpen={setAssetDropdownOpen}
           currentPrice={prices[selectedAsset.name]} formatPrice={formatPrice}
-          onClose={() => setShowCreateModal(false)} onCreate={handleCreateAlarm} />
+          onClose={() => setShowCreateModal(false)} onCreate={handleCreateAlarm} 
+          editingAlarmId={editingAlarmId}
+          />
       )}
     </div>
   );
 }
 
-function AlarmCard({ t, alarm, assetData, currentPrice, onDelete, onToggle, formatPrice, relativeTime }) {
+function AlarmCard({ t, alarm, assetData, currentPrice, onDelete, onToggle, formatPrice, relativeTime,onEdit }) {
   const isAbove = alarm.condition === "above";
   return (
     <div className={`rounded-2xl border p-5 transition-all ${alarm.is_active ? `border-blue-500/30 ${t.cardBg}` : `${t.cardBorder} ${t.deepCardBg} opacity-60`}`}>
@@ -411,6 +441,10 @@ function AlarmCard({ t, alarm, assetData, currentPrice, onDelete, onToggle, form
           <button onClick={onToggle} className={`p-2 rounded-lg border transition-all ${alarm.is_active ? "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20" : `${t.cardBorder} ${t.deepCardBg} ${t.textSecond} hover:border-emerald-500/40 hover:text-emerald-400`}`}>
             {alarm.is_active ? <BellOff size={16} /> : <Bell size={16} />}
           </button>
+        <button onClick={onEdit} className={`p-2 rounded-lg border ${t.cardBorder} ${t.deepCardBg} ${t.textSecond} hover:border-blue-500/40 hover:text-blue-400 transition-all`}>
+            <Edit2 size={16} />
+          </button>
+
           <button onClick={onDelete} className="p-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all">
             <Trash2 size={16} />
           </button>
@@ -450,7 +484,7 @@ function NotificationCard({ t, notif, assetData, onDelete, formatPrice, relative
   );
 }
 
-function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, assetDropdownOpen, setAssetDropdownOpen, currentPrice, formatPrice, onClose, onCreate }) {
+function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, assetDropdownOpen, setAssetDropdownOpen, currentPrice, formatPrice, onClose, onCreate, editingAlarmId }) {
   const valid = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -458,7 +492,9 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Target size={20} className="text-blue-400" />
-            <h2 className={`text-lg font-bold ${t.textPrimary}`}>Yeni Alarm Kur</h2>
+            <h2 className={`text-lg font-bold ${t.textPrimary}`}>
+  {editingAlarmId ? "Alarmı Düzenle" : "Yeni Alarm Kur"}
+</h2>
           </div>
           <button onClick={onClose} className={`p-1.5 ${t.textMuted} hover:${t.textPrimary} transition-colors`}><X size={18} /></button>
         </div>
@@ -532,10 +568,9 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
 
         <div className="flex gap-3">
           <button onClick={onClose} className={`flex-1 py-3 rounded-xl border ${t.cardBorder} ${t.textSecond} ${t.hoverText} ${t.hoverBg} text-sm font-semibold transition-all`}>İptal</button>
-          <button onClick={onCreate} disabled={!valid}
-            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${valid ? "bg-blue-600 text-white hover:bg-blue-500 shadow-lg" : `${t.cardBg2} ${t.textMuted} cursor-not-allowed`}`}>
-            Alarmı Kur
-          </button>
+<button onClick={onCreate} disabled={!valid} className={`...`}>
+  {editingAlarmId ? "Değişiklikleri Kaydet" : "Alarmı Kur"}
+</button>
         </div>
       </div>
     </div>

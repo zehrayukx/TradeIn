@@ -97,3 +97,26 @@ def alarm_tetiklendi(gelen_veri: NotificationCreate, background_tasks: Backgroun
             background_tasks.add_task(send_alarm_email, to_email=current_user.email, asset=gelen_veri.asset, target_price=gelen_veri.target_price, current_price=gelen_veri.triggered_price, condition=gelen_veri.condition)
     db.commit()
     return {"mesaj": "Bildirim kaydedildi"}
+
+# alarms.py dosyasının en altına ekle
+@router.put("/alarm-duzenle/{alarm_id}")
+def alarm_duzenle(
+    alarm_id: int, 
+    gelen_veri: AlarmCreate, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    alarm = db.query(models.Alarm).filter(models.Alarm.id == alarm_id, models.Alarm.user_id == current_user.id).first()
+    if not alarm: 
+        raise HTTPException(status_code=404, detail="Alarm bulunamadı")
+    
+    # Yeni verileri mevcut alarmın üzerine yaz
+    alarm.asset = gelen_veri.asset
+    alarm.target_price = gelen_veri.target_price
+    alarm.condition = gelen_veri.condition
+    alarm.notify_email = gelen_veri.notify_email
+    alarm.notify_browser = gelen_veri.notify_browser
+    alarm.is_active = True # Düzenlenince alarmı otomatik tekrar aktif edelim
+    
+    db.commit()
+    return {"mesaj": "Alarm başarıyla güncellendi"}
