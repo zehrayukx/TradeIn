@@ -12,6 +12,7 @@ import Portfolio from './pages/Portfolio';
 import Alarms from './pages/Alarms';
 import Settings from './pages/Settings';
 import Markets from './pages/Markets';
+import Notifications from './pages/Notifications';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("tradein_token"));
@@ -30,6 +31,7 @@ function App() {
           <Route path="/alarms" element={<Alarms isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />} />
           <Route path="/settings" element={<Settings isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />} />
           <Route path="/markets" element={<Markets isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />} />
+          <Route path="/notifications" element={<Notifications isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
