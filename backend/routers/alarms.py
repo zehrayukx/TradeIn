@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 import database, models
 from .dependencies import get_current_user
+from utils.mail import send_alarm_email
 
 # .env dosyasını yükle (SMTP şifrelerini kodun içine gömmemek için)
 load_dotenv()
@@ -30,47 +31,7 @@ class NotificationCreate(BaseModel):
     condition: str
 
 # --- E-POSTA GÖNDERME FONKSİYONU ---
-def send_alarm_email(to_email: str, asset: str, target_price: float, current_price: float, condition: str):
-    # .env'den okuyamazsa hata yapmasın diye varsayılan değerleri yedekliyoruz
-    SENDER_EMAIL = os.getenv("EMAIL_ADDRESS", "emircan123kocatepe@gmail.com")
-    APP_PASSWORD = os.getenv("EMAIL_PASSWORD", "nkdurzhogfymxsaq")
-    
-    # 🚨 DEBUG LOG: Fonksiyonun tetiklendiğini ve hangi verileri aldığını görelim
-    print(f"\n🚀 [SMTP DEBUG]: send_alarm_email fonksiyonu BAŞLATILDI!")
-    print(f"📧 Gönderici: {SENDER_EMAIL} | Alıcı: {to_email}")
-    print(f"💰 Varlık: {asset} | Hedef: {target_price} | Tetiklenen: {current_price}")
 
-    durum_metni = "Üzerine Çıktı 📈" if condition.lower() == "above" else "Altına Düştü 📉"
-    subject = f"🔔 TradeIn Alarm: {asset} Hedefe Ulaştı!"
-    body = f"Merhaba,\n\nTradeIn alarmı tetiklendi!\n💰 Varlık: {asset}\n🎯 Hedeflenen: {target_price}\n⚡ Tetiklenme: {current_price}\n📊 Koşul: {durum_metni}"
-    
-    msg = MIMEMultipart()
-    msg['From'] = SENDER_EMAIL
-    msg['To'] = to_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain', 'utf-8'))
-    
-    try:
-        print("🔗 [SMTP DEBUG]: Gmail sunucusuna bağlanılıyor (smtp.gmail.com:587)...")
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        
-        # Sunucu konuşmalarını terminale dökmesini istiyoruz (Çok önemli!)
-        server.set_debuglevel(1) 
-        
-        print("🔐 [SMTP DEBUG]: TLS güvenliği başlatılıyor...")
-        server.starttls()
-        
-        print("🔑 [SMTP DEBUG]: Giriş yapılmaya çalışılıyor...")
-        server.login(SENDER_EMAIL, APP_PASSWORD)
-        
-        print("📤 [SMTP DEBUG]: E-posta gönderiliyor...")
-        server.send_message(msg)
-        
-        server.quit()
-        print("✅ [SMTP DEBUG]: E-posta BAŞARIYLA GÖNDERİLDİ ve bağlantı kapatıldı!\n")
-    except Exception as e: 
-        print(f"❌ [SMTP KRİTİK HATA]: E-posta gönderilemedi!")
-        print(f"Hata Detayı: {type(e).__name__} -> {e}\n")
 # --- ENDPOINTS (UÇLAR) ---
 
 @router.post("/alarm-kur")
@@ -178,3 +139,6 @@ def alarm_tetiklendi(gelen_veri: NotificationCreate, background_tasks: Backgroun
         
     db.commit()
     return {"mesaj": "Bildirim kaydedildi ve e-posta kuyruğa eklendi"}
+
+
+

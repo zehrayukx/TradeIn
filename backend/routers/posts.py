@@ -10,6 +10,7 @@ import os
 from pathlib import Path 
 from dotenv import load_dotenv
 from groq import Groq  # 🚀 Resmi Groq kütüphanemiz
+from utils.mail import send_social_notification_email
 
 # .env dosyasını bul ve yükle
 backend_dizini = Path(__file__).resolve().parent.parent
@@ -168,6 +169,14 @@ def post_begen(post_id: int, db: Session = Depends(database.get_db), current_use
         )
         db.add(yeni_bildirim)
         db.commit()
+        hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
+        if hedef_kullanici and hedef_kullanici.email:
+            send_social_notification_email(
+                to_email=hedef_kullanici.email,
+                actor_name=current_user.username,
+                notification_type="like",
+                post_preview=post.content[:40] + "..."
+            )
         return {"mesaj": "Post beğenildi", "begenildi": True}
 
 @router.post("/post/{post_id}/yorum")
@@ -196,6 +205,15 @@ async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(da
         )
         db.add(yeni_bildirim)
         db.commit()
+        hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
+        if hedef_kullanici and hedef_kullanici.email:
+            send_social_notification_email(
+                to_email=hedef_kullanici.email,
+                actor_name=current_user.username,
+                notification_type="comment",
+                post_preview=post.content[:40] + "...",
+                comment_preview=new_comment.content
+            )
         return {"mesaj": "Yorum eklendi"}
 
 @router.get("/post/{post_id}/yorumlar")
@@ -235,6 +253,13 @@ def takip_et(takip_edilecek_id: int, db: Session = Depends(database.get_db), cur
     )
     db.add(yeni_bildirim)
     db.commit()
+    hedef_kullanici = db.query(models.User).filter(models.User.id == takip_edilecek_id).first()
+    if hedef_kullanici and hedef_kullanici.email:
+        send_social_notification_email(
+            to_email=hedef_kullanici.email,
+            actor_name=current_user.username,
+            notification_type="follow"
+        )
     return {"mesaj": "Takip edildi."}
 
 @router.get("/akis")
