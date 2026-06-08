@@ -21,6 +21,8 @@ class User(Base):
     bio = Column(Text, nullable=True)
     profile_pic = Column(String(255), nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    alarms = relationship("Alarm", back_populates="owner", cascade="all, delete-orphan")
     
     # İlişkiler
     posts = relationship("Post", back_populates="owner", cascade="all, delete-orphan")
@@ -98,6 +100,8 @@ class Alarm(Base):
     notify_browser = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    owner = relationship("User", back_populates="alarms")
 
 class AlarmNotification(Base):
     __tablename__ = "alarm_notifications"
