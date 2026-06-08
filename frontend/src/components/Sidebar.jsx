@@ -3,7 +3,7 @@ import { Home, BarChart2, Bell, Heart, Settings, LogIn, LogOut, Wallet, User } f
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn, alarmNotifCount = 0 }) => {
+const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn, alarmNotifCount = 0, notifBadge = 0 }) => {
   const location = useLocation();
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
@@ -16,7 +16,7 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn, alarmNotifCount = 0 }) => 
 
   const protectedItems = [
     { name: 'Profilim', icon: User, path: '/profile', badge: 0 },
-    { name: 'Bildirimler', icon: Heart, path: '/notifications', badge: 0 },
+    { name: 'Bildirimler', icon: Heart, path: '/notifications', badge: notifBadge },
     { name: 'Alarmlar', icon: Bell, path: '/alarms', badge: alarmNotifCount },
     { name: 'Portföyüm', icon: Wallet, path: '/portfolio', badge: 0 },
   ];

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, User, Menu, LogOut, PlusCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost, searchQuery, setSearchQuery }) => {
+const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost, searchQuery, setSearchQuery, notifCount = 0 }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
+  const navigate = useNavigate();
   const [userResults, setUserResults] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const inputRef = useRef(null);
@@ -111,10 +112,14 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost,
               <LogOut size={20} />
             </button>
           )}
-          <button className={`p-2 ${t.textMuted} ${t.hoverText} transition-colors relative`}>
+          <Link to="/notifications" className={`p-2 ${t.textMuted} ${t.hoverText} transition-colors relative flex items-center justify-center`}>
             <Bell size={24} />
-            <span className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 ${theme === 'dark' ? 'border-[#0f1117]' : 'border-white'}`} />
-          </button>
+            {notifCount > 0 && (
+              <span className={`absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1 border-2 ${theme === 'dark' ? 'border-[#0f1117]' : 'border-white'} animate-pulse`}>
+                {notifCount > 99 ? '99+' : notifCount}
+              </span>
+            )}
+          </Link>
           {isLoggedIn ? (
             <Link to="/profile" className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] ml-1 shrink-0">
               <img src={`https://ui-avatars.com/api/?name=${user?.name || 'U'}&background=random&color=fff`} alt="Profil"

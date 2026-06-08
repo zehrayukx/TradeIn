@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import models
 from database import engine
-
+from routers import notifications
 from routers import auth_routes, posts, profiles, portfolio, alarms, settings
 
 models.Base.metadata.create_all(bind=engine)
@@ -24,6 +24,7 @@ app.include_router(profiles.router)
 app.include_router(portfolio.router)
 app.include_router(alarms.router)
 app.include_router(settings.router)
+app.include_router(notifications.router)
 
 @app.get("/")
 def root():

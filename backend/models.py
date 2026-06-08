@@ -1,11 +1,32 @@
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, DECIMAL, Boolean
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, DECIMAL, Boolean ,Float,DateTime, func 
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Float, Boolean, DateTime
-from sqlalchemy.sql import func
 
+
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) # Bildirimi alan (Hedef)
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) # Eylemi yapan (Aktör)
+    type = Column(String(20), nullable=False) # 'follow' | 'like' | 'comment'
+    
+    post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=True)
+    comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)
+    
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # --- İlişkiler ---
+    # Bu ilişkiler sayesinde actor_id üzerinden kişinin adına, avatarına tek tıkla ulaşacağız
+    user = relationship("User", foreign_keys=[user_id])
+    actor = relationship("User", foreign_keys=[actor_id])
+    post = relationship("Post")
+    comment = relationship("Comment")
 
 class User(Base):
     __tablename__ = "users"

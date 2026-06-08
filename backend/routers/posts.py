@@ -158,6 +158,16 @@ def post_begen(post_id: int, db: Session = Depends(database.get_db), current_use
         new_like = models.Like(post_id=post_id, user_id=current_user.id)
         db.add(new_like)
         db.commit()
+        # Beğeni başarıyla eklendiğinde (new_like commit edildikten hemen sonra):
+    if post.user_id != current_user.id:
+        yeni_bildirim = models.Notification(
+            user_id=post.user_id,
+            actor_id=current_user.id,
+            type="like",
+            post_id=post.id
+        )
+        db.add(yeni_bildirim)
+        db.commit()
         return {"mesaj": "Post beğenildi", "begenildi": True}
 
 @router.post("/post/{post_id}/yorum")
@@ -176,7 +186,17 @@ async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(da
     new_comment = models.Comment(post_id=post_id, user_id=current_user.id, content=yorum.content)
     db.add(new_comment)
     db.commit()
-    return {"mesaj": "Yorum eklendi"}
+    if post.user_id != current_user.id: # Kendi postuna yorum yapınca bildirim gitmesin
+        yeni_bildirim = models.Notification(
+            user_id=post.user_id, # Postun asıl sahibi (Hedef)
+            actor_id=current_user.id, # Yorumu yapan (Aktör)
+            type="comment",
+            post_id=post.id,
+            comment_id=new_comment.id
+        )
+        db.add(yeni_bildirim)
+        db.commit()
+        return {"mesaj": "Yorum eklendi"}
 
 @router.get("/post/{post_id}/yorumlar")
 def yorumlari_getir(post_id: int, db: Session = Depends(database.get_db)):
@@ -206,6 +226,14 @@ def takip_et(takip_edilecek_id: int, db: Session = Depends(database.get_db), cur
         return {"mesaj": "Takipten çıkıldı"}
     new_follow = models.Follow(follower_id=current_user.id, followed_id=takip_edilecek_id)
     db.add(new_follow)
+    db.commit()
+    # Takip satırı veritabanına eklendiğinde (new_follow commit edildikten hemen sonra):
+    yeni_bildirim = models.Notification(
+        user_id=takip_edilecek_id, # Takip edilen kişi (Hedef)
+        actor_id=current_user.id, # Takip butonuna basan (Aktör)
+        type="follow"
+    )
+    db.add(yeni_bildirim)
     db.commit()
     return {"mesaj": "Takip edildi."}
 
