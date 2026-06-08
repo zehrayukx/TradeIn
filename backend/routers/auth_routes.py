@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import database, models, auth
+from sqlalchemy import or_
 
 router = APIRouter(tags=["Kimlik Doğrulama"])
 
@@ -26,13 +27,22 @@ def kayit_ol(kullanici: UserCreate, db: Session = Depends(database.get_db)):
 
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    user = db.query(models.User).filter(
+        or_(
+            models.User.username == form_data.username,
+            models.User.email == form_data.username
+        )
+    ).first()
     
     if not user or not auth.verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Kullanıcı adı veya şifre hatalı!"
+            detail="Kullanıcı adı/E-posta veya şifre hatalı!"
         )
     
     access_token = auth.create_access_token(data={"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+    "access_token": access_token, 
+    "token_type": "bearer",
+    "username": user.username 
+}

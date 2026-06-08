@@ -1,12 +1,43 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 import database, models
-from .dependencies import get_current_user, get_optional_current_user # Dependency dosyasından gelecek
+from .dependencies import get_current_user, get_optional_current_user
+
+# --- YAPAY ZEKA KÜTÜPHANELERİ ---
+import os
+from pathlib import Path 
+from dotenv import load_dotenv
+from groq import Groq  # 🚀 Resmi Groq kütüphanemiz
+
+# .env dosyasını bul ve yükle
+backend_dizini = Path(__file__).resolve().parent.parent
+env_adresi = backend_dizini / ".env"
+load_dotenv(dotenv_path=env_adresi, override=True)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+# Yapılandırma
+client = None
+if GROQ_API_KEY:
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        print(f"Groq başlatma hatası: {e}")
+else:
+    print("UYARI: GROQ_API_KEY bulunamadı!")
+
+# --- LOGLAMA ---
+print("\n" + "="*50)
+print("   TRADEIN GROQ AI MODERASYON SİSTEMİ")
+print("="*50)
+print(f"🔑 Yapay Zeka Durumu: {'AKTİF (Llama 3) ✅' if client else 'PASİF (Lokal Koruma Aktif) ❌'}")
+print("="*50 + "\n")
 
 router = APIRouter(tags=["Gönderiler ve Sosyal Ağ"])
 
+# --- PYDANTIC ŞEMALARI ---
 class PostCreate(BaseModel):
     content: str
     media_url: str = None  
@@ -17,19 +48,84 @@ class PostUpdate(BaseModel):
 class CommentCreate(BaseModel):
     content: str
 
+# --- YAPAY ZEKA MODERATÖR FONKSİYONU (HİBRİT MİMARİ) ---
+async def yapay_zeka_onayi(metin: str) -> bool:
+    # 1. YOL: Eğer Groq istemcisi hazırsa gerçek yapay zekayı çalıştır
+    if client:
+        try:
+            prompt = f"""
+            Sen TradeIn adlı finansal sosyal medya platformunun katı bir moderatörüsün.
+            Aşağıdaki kullanıcı yorumunu incele. İçinde küfür, ağır hakaret, zorbalık, argo, nefret söylemi veya gizlenmiş kötü kelime varsa sadece 'RED' yaz.
+            Eğer finans, borsa, günlük yaşamla ilgili normal, temiz veya eleştirel bir metinse sadece 'KABUL' yaz.
+            Açıklama yapma, sadece KABUL veya RED yaz.
+            
+            Yorum Metni: "{metin}"
+            """
+            
+            # Dünyanın en hızlı açık kaynaklı modeli Llama 3'ü çağırıyoruz
+            # 🚀 MODEL İSMİNİ GÜNCEL VERSİYONA ÇEKİYORUZ:
+            completion = client.chat.completions.create(
+                model="llama-3.1-8b-instant",  # Groq'un şu an ücretsiz planda en çok kullanılan, aktif modeli
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=10
+            )
+            
+            response_text = completion.choices[0].message.content
+            if response_text:
+                sonuc = response_text.strip().upper()
+                print(f"🤖 [Groq AI Analizi]: {sonuc}")
+                return "RED" not in sonuc
+                
+        except Exception as e:
+            print(f"⚠️ Groq API Hatası, Lokal Korumaya Geçiliyor... Detay: {e}")
+            # API'de bir sorun olursa alt satırdaki yerel filtreye pasla
+            pass
+
+    # 2. YOL (FALLBACK): API yoksa veya çökerse lokal regex koruması devreye girer
+    temiz_metin = metin.lower().strip()
+    kara_liste = ["salak", "beyinsiz", "gerizekali", "gerizekalı", "aptal", "piç", "orospu", "amk"]
+    for kelime in kara_liste:
+        if kelime in temiz_metin:
+            print(f"🚨 [Lokal Filtre]: Argo tespit edildi! Kelime: '{kelime}'")
+            return False
+            
+    return True
+# --- UÇLAR (ENDPOINTS) ---
+
+# --- UÇLAR (ENDPOINTS) ---
+
 @router.post("/post-olustur")
-def post_olustur(gelen_veri: PostCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+async def post_olustur(gelen_veri: PostCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    # 🚀 YENİ: Post içeriği veritabanına kaydedilmeden önce yapay zekaya/filtreye soruluyor
+    is_clean = await yapay_zeka_onayi(gelen_veri.content)
+    if not is_clean:
+        raise HTTPException(
+            status_code=400, 
+            detail="Gönderiniz topluluk kurallarımıza (argo/hakaret/küfür) aykırı olduğu için yapay zeka tarafından engellendi."
+        )
+
     new_post = models.Post(user_id=current_user.id, content=gelen_veri.content, media_url=gelen_veri.media_url)
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
     return {"mesaj": "Post yayınlandı!", "yazar": current_user.username, "post_id": new_post.id}
 
+
 @router.put("/post/{post_id}")
-def post_guncelle(post_id: int, gelen_veri: PostUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+async def post_guncelle(post_id: int, gelen_veri: PostUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post: raise HTTPException(status_code=404, detail="Post bulunamadı")
     if post.user_id != current_user.id: raise HTTPException(status_code=403, detail="Yetkiniz yok")
+    
+    # 🚀 YENİ: Düzenlenen yeni içerik de yapay zeka kontrolünden geçiyor
+    is_clean = await yapay_zeka_onayi(gelen_veri.content)
+    if not is_clean:
+        raise HTTPException(
+            status_code=400, 
+            detail="Düzenlediğiniz içerik topluluk kurallarımıza (argo/hakaret/küfür) aykırı olduğu için yapay zeka tarafından engellendi."
+        )
+
     post.content = gelen_veri.content
     db.commit()
     return {"mesaj": "Post güncellendi", "content": post.content}
@@ -65,9 +161,18 @@ def post_begen(post_id: int, db: Session = Depends(database.get_db), current_use
         return {"mesaj": "Post beğenildi", "begenildi": True}
 
 @router.post("/post/{post_id}/yorum")
-def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post: raise HTTPException(status_code=404, detail="Post bulunamadı")
+    
+    # Yorum veritabanına girmeden önce yapay zekaya soruluyor
+    is_clean = await yapay_zeka_onayi(yorum.content)
+    if not is_clean:
+        raise HTTPException(
+            status_code=400, 
+            detail="Yorumunuz topluluk kurallarımıza (argo/hakaret) aykırı olduğu için yapay zeka tarafından engellendi."
+        )
+    
     new_comment = models.Comment(post_id=post_id, user_id=current_user.id, content=yorum.content)
     db.add(new_comment)
     db.commit()
@@ -117,17 +222,13 @@ def akis(db: Session = Depends(database.get_db), current_user: models.User = Dep
         formatted_posts.append({"post_id": p.id, "icerik": p.content, "yazar": u, "tarih": p.created_at, "likes": like_count, "comments": comment_count, "isLiked": user_like is not None})
     return formatted_posts
 
-@router.delete("/yorum/{yorum_id}")
+@router.delete("/post/yorum-sil/{yorum_id}")
 def yorum_sil(yorum_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     yorum = db.query(models.Comment).filter(models.Comment.id == yorum_id).first()
-    
     if not yorum: 
         raise HTTPException(status_code=404, detail="Yorum bulunamadı")
-    
-    # Sadece yorumu yazan kişi silebilir
     if yorum.user_id != current_user.id: 
         raise HTTPException(status_code=403, detail="Bu yorumu silme yetkiniz yok")
-        
     db.delete(yorum)
     db.commit()
     return {"mesaj": "Yorum başarıyla silindi"}

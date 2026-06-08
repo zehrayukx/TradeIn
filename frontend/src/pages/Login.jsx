@@ -32,7 +32,7 @@ const Login = ({ setIsLoggedIn }) => {
       const token = response.data.access_token;
       localStorage.setItem("tradein_token", token);
       // Kullanıcının girdiği identifier'ı username olarak kaydet
-      localStorage.setItem("tradein_username", formData.identifier.replace(/^@/, ''));
+      localStorage.setItem("tradein_username", response.data.username);
 
       // Sisteme giriş yapıldığını bildir!
       setIsLoggedIn(true);
