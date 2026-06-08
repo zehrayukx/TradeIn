@@ -272,7 +272,13 @@ const openEditModal = (alarm) => {
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
-  function formatPrice(val) { return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(val); }
+  function formatPrice(val) { 
+  if (val === undefined || val === null || isNaN(val)) return "";
+  return new Intl.NumberFormat("tr-TR", { 
+    minimumFractionDigits: 2, // Düz sayılarda bile en azından ,50 şeklinde göstersin
+    maximumFractionDigits: 4  // Veritabanındaki gibi 4 haneye kadar izin versin
+  }).format(val); 
+}
   
   function relativeTime(iso) {
     if(!iso) return "";
