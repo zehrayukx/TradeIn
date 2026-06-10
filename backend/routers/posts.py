@@ -215,6 +215,26 @@ async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(da
                 comment_preview=new_comment.content
             )
         return {"mesaj": "Yorum eklendi"}
+    
+
+@router.delete("/post/sil/{post_id}")
+def post_sil(post_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    # 1. Gönderiyi veritabanında arıyoruz
+    post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    
+    # 2. Gönderi var mı kontrolü
+    if not post: 
+        raise HTTPException(status_code=404, detail="Gönderi bulunamadı")
+        
+    # 3. Yetki Kontrolü: Sadece postun sahibi silebilir
+    if post.user_id != current_user.id: 
+        raise HTTPException(status_code=403, detail="Bu gönderiyi silme yetkiniz yok!")
+        
+    # 4. Silme ve Kaydetme
+    db.delete(post)
+    db.commit()
+    
+    return {"mesaj": "Gönderi ve bağlı tüm etkileşimler başarıyla silindi"}
 
 @router.get("/post/{post_id}/yorumlar")
 def yorumlari_getir(post_id: int, db: Session = Depends(database.get_db)):

@@ -29,13 +29,12 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Mevcut state'lerin arasına ekle
-const [followModal, setFollowModal] = useState({
-  isOpen: false,
-  type: '', // 'followers' veya 'following'
-  data: [],
-  loading: false
-});
+  const [followModal, setFollowModal] = useState({
+    isOpen: false,
+    type: '', // 'followers' veya 'following'
+    data: [],
+    loading: false
+  });
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -87,14 +86,39 @@ const [followModal, setFollowModal] = useState({
     }
   }, [activeTab, profileData, username, isOwnProfile]);
 
-  const handleLike = async (postId) => {
+const handleLike = async (postId) => {
     const token = localStorage.getItem('tradein_token');
     if (!token) { alert('Beğenmek için giriş yapmalısınız!'); return; }
+    
+    // 🎯 TILSIM 1: Listeden tıklanan postun şu anki beğeni durumunu buluyoruz
+    const targetPost = posts.find(p => p.id === postId);
+    if (!targetPost) return;
+    
+    // 🎯 TILSIM 2: Eğer zaten beğenildiyse false olacak, beğenilmediyse true olacak (Yerel Geçiş)
+    const willBeLiked = !targetPost.isLiked; 
+
     try {
-      const response = await axios.post(`http://127.0.0.1:8000/post/${postId}/begen`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      if (activeTab === 'Beğendiklerim' && !response.data.begenildi) { setPosts(prev => prev.filter(p => p.id !== postId)); return; }
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: response.data.begenildi ? p.likes + 1 : Math.max(0, p.likes - 1), isLiked: response.data.begenildi } : p));
-    } catch (error) { console.error(error); }
+      // Backend'e isteği atıyoruz (Arka planda veritabanı tıkır tıkır güncelleniyor)
+      await axios.post(`http://127.0.0.1:8000/post/${postId}/begen`, {}, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+
+      // 🎯 TILSIM 3: Eğer "Beğendiklerim" sekmesindeysek ve beğeniyi geri aldıysak listeden anında uçur
+      if (activeTab === 'Beğendiklerim' && !willBeLiked) {
+        setPosts(prev => prev.filter(p => p.id !== postId));
+        return;
+      }
+
+      // 🎯 TILSIM 4: Backend'den ne döndüğüne (`response.data`) bakmaksızın state'imizi güvenle güncelliyoruz!
+      setPosts(prev => prev.map(p => p.id === postId ? { 
+        ...p, 
+        likes: willBeLiked ? p.likes + 1 : Math.max(0, p.likes - 1), 
+        isLiked: willBeLiked 
+      } : p));
+
+    } catch (error) { 
+      console.error("Beğeni işlenirken hata oluştu:", error); 
+    }
   };
 
   const handleFollow = async () => {
@@ -118,26 +142,24 @@ const [followModal, setFollowModal] = useState({
     } catch (error) { console.error(error); }
   };
 
-const openFollowModal = async (type) => {
-  setFollowModal({ isOpen: true, type, data: [], loading: true });
-  try {
-    const token = localStorage.getItem('tradein_token');
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-    const endpointSuffix = type === 'followers' ? 'takipciler' : 'takip-edilenler';
-    const url = isOwnProfile 
-      ? `http://127.0.0.1:8000/profilim/${endpointSuffix}` 
-      : `http://127.0.0.1:8000/kullanici/${username}/${endpointSuffix}`;
+  const openFollowModal = async (type) => {
+    setFollowModal({ isOpen: true, type, data: [], loading: true });
+    try {
+      const token = localStorage.getItem('tradein_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const endpointSuffix = type === 'followers' ? 'takipciler' : 'takip-edilenler';
+      const url = isOwnProfile 
+        ? `http://127.0.0.1:8000/profilim/${endpointSuffix}` 
+        : `http://127.0.0.1:8000/kullanici/${username}/${endpointSuffix}`;
 
-    const response = await axios.get(url, { headers });
-    setFollowModal(prev => ({ ...prev, data: response.data, loading: false }));
-  } catch (error) {
-    console.error("Kullanıcı listesi çekilemedi:", error);
-    setFollowModal(prev => ({ ...prev, loading: false }));
-  }
-};
+      const response = await axios.get(url, { headers });
+      setFollowModal(prev => ({ ...prev, data: response.data, loading: false }));
+    } catch (error) {
+      console.error("Kullanıcı listesi çekilemedi:", error);
+      setFollowModal(prev => ({ ...prev, loading: false }));
+    }
+  };
 
-
-  
   const handleUpdatePost = async () => {
     if (!editPostContent.trim()) return;
     const token = localStorage.getItem('tradein_token');
@@ -146,6 +168,40 @@ const openFollowModal = async (type) => {
       setPosts(prev => prev.map(p => p.id === editingPost.id ? { ...p, content: editPostContent } : p));
       setEditingPost(null);
     } catch (error) { console.error(error); }
+  };
+
+  // 🚀 GÜNCELLENDİ: Profildeki toplam gönderi sayısını da anlık olarak düşürüyor
+const handleDeletePost = async (postId) => {
+    const isConfirmed = window.confirm("Bu gönderiyi silmek istediğinize emin misiniz? (Tüm beğeni ve yorumlar da silinecektir)");
+    if (!isConfirmed) return;
+
+    const token = localStorage.getItem("tradein_token");
+    if (!token) return;
+
+    try {
+      // 1. Backend'e silme isteği atılıyor
+      await axios.delete(`http://127.0.0.1:8000/post/sil/${postId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // 2. 🎯 TILSIMLI DÜZELTME: profileData'yı güncellerken içindeki posts dizisinden de bu postu siliyoruz!
+      setProfileData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          postsCount: Math.max(0, prev.postsCount - 1), // Sayacı 1 azalt
+          posts: (prev.posts || []).filter(post => post.id !== postId) // 🚀 Gönderiyi ana kaynaktan da uçur!
+        };
+      });
+
+      // 3. Mevcut posts listesini de anlık olarak filtrele
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+      
+      alert("Gönderi başarıyla silindi.");
+    } catch (error) {
+      console.error("Post silinirken hata oluştu:", error);
+      alert("Gönderi silinirken bir hata oluştu.");
+    }
   };
 
   const handleLogout = () => { localStorage.removeItem('tradein_token'); if (setIsLoggedIn) setIsLoggedIn(false); navigate('/login'); };
@@ -207,7 +263,6 @@ const openFollowModal = async (type) => {
                   )}
                 </div>
 
-                {/* RAKAMLAR VE DROPDOWN KISMI */}
                 <div className={`relative flex justify-center md:justify-start gap-10 mb-6 text-sm ${t.textPrimary}`}>
                   <span><strong>{profileData.postsCount}</strong> <span className={t.textSecond}>gönderi</span></span>
                   
@@ -219,19 +274,10 @@ const openFollowModal = async (type) => {
                     <strong>{profileData.following?.toLocaleString('tr-TR')}</strong> <span className={t.textSecond}>takip</span>
                   </button>
 
-                  {/* Dropdown Menü Başlangıcı */}
                   {followModal?.isOpen && (
                     <>
-                      {/* Ekranın boş bir yerine tıklayınca menünün kapanmasını sağlayan görünmez katman */}
-                      <div 
-                        className="fixed inset-0 z-40" 
-                        onClick={() => setFollowModal({ ...followModal, isOpen: false })}
-                      />
-                      
-                      {/* Dropdown Kutusu (Sayıların hemen altında açılır) */}
+                      <div className="fixed inset-0 z-40" onClick={() => setFollowModal({ ...followModal, isOpen: false })} />
                       <div className={`absolute top-full left-1/2 md:left-0 transform -translate-x-1/2 md:translate-x-0 mt-2 w-64 md:w-72 max-h-[350px] flex flex-col ${t.modalBg} border ${t.cardBorder} rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
-                        
-                        {/* Dropdown Başlığı */}
                         <div className={`px-4 py-3 border-b ${t.divider} flex justify-between items-center bg-opacity-50`}>
                           <span className="text-xs font-black tracking-wider text-blue-500 uppercase">
                             {followModal.type === 'followers' ? 'Takipçiler' : 'Takip Edilenler'}
@@ -241,7 +287,6 @@ const openFollowModal = async (type) => {
                           </button>
                         </div>
 
-                        {/* Kaydırılabilir Kullanıcı Listesi */}
                         <div className="p-2 overflow-y-auto flex-1 custom-scrollbar">
                           {followModal.loading ? (
                             <div className="text-center py-8 text-blue-500 animate-pulse text-sm font-medium">Kullanıcılar yükleniyor...</div>
@@ -306,8 +351,14 @@ const openFollowModal = async (type) => {
                 <div className="text-center py-10 text-blue-500 animate-pulse text-sm">Gönderiler yükleniyor...</div>
               ) : posts.length > 0 ? (
                 posts.map(post => (
-                  <FeedCard key={post.id} post={post} onLike={handleLike}
-                    onEdit={isOwnProfile && activeTab === 'Gönderilerim' ? () => { setEditingPost(post); setEditPostContent(post.content); } : null} />
+                  <FeedCard 
+                    key={post.id} 
+                    post={post} 
+                    onLike={handleLike}
+                    // 🚀 GÜNCELLENDİ: Eğer kendi profilimizde ve "Gönderilerim" sekmesindeysek silme ve düzenleme fonksiyonlarını gönderiyoruz
+                    onEdit={isOwnProfile && activeTab === 'Gönderilerim' ? () => { setEditingPost(post); setEditPostContent(post.content); } : null} 
+                    onDelete={isOwnProfile && activeTab === 'Gönderilerim' ? handleDeletePost : null}
+                  />
                 ))
               ) : (
                 <div className={`text-center py-20 ${t.deepCardBg} rounded-2xl border border-dashed ${t.cardBorder}`}>

@@ -4,10 +4,8 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-
-
-// currentUser prop'unu ekledik
-const FeedCard = ({ post, onLike, onEdit, currentUser }) => {
+// 🚀 1. ADIM: onDelete prop'unu yukarıdaki parantezin içine ekledik
+const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
   const [showComments, setShowComments] = useState(false);
@@ -72,9 +70,8 @@ const FeedCard = ({ post, onLike, onEdit, currentUser }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Silme başarılıysa state'leri güncelle
       setComments(prevComments => prevComments.filter(comment => comment.id !== commentId));
-      setLocalCommentCount(prev => Math.max(0, prev - 1)); // Yorum sayısını 1 azalt
+      setLocalCommentCount(prev => Math.max(0, prev - 1));
       
     } catch (error) {
       console.error("Yorum silinirken hata oluştu:", error);
@@ -85,8 +82,6 @@ const FeedCard = ({ post, onLike, onEdit, currentUser }) => {
       }
     }
   };
-
-console.log("Aktif Kullanıcı: ", currentUser);
 
   return (
     <div className={`${t.cardBg} border ${t.cardBorder} rounded-2xl mb-4 overflow-hidden transition-all hover:border-blue-500/30 shadow-lg`}>
@@ -99,17 +94,38 @@ console.log("Aktif Kullanıcı: ", currentUser);
               <p className={`text-xs ${t.textMuted}`}>{post.time}</p>
             </div>
           </Link>
-          {onEdit ? (
-            <button onClick={() => onEdit(post)} className={`${t.textSecond} hover:text-blue-500 p-2 transition-colors`} title="Gönderiyi Düzenle">
-              <Edit2 size={18} />
-            </button>
-          ) : (
-            <button className={`${t.textMuted} hover:${t.textPrimary} p-2`}><MoreHorizontal size={20} /></button>
-          )}
+          
+          {/* 🚀 2. ADIM: GÖNDERİ BAŞLIĞINDAKİ BUTON ALANINI AKILLI HALE GETİRDİK */}
+          <div className="flex items-center gap-1">
+            {/* Düzenleme yetkisi (onEdit) varsa kalemi göster */}
+            {onEdit && (
+              <button onClick={() => onEdit(post)} className={`${t.textSecond} hover:text-blue-500 p-2 transition-colors`} title="Gönderiyi Düzenle">
+                <Edit2 size={18} />
+              </button>
+            )}
+            
+            {/* Silme yetkisi (onDelete) varsa aslanlar gibi çöp kutusunu göster */}
+            {onDelete && (
+              <button 
+                onClick={() => onDelete(post.id)} 
+                className="text-red-500/70 hover:text-red-500 p-2 transition-colors" 
+                title="Gönderiyi Sil"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+
+            {/* Eğer ikisi de yoksa (başkasının profilindeysek) sadece klasik üç noktayı göster */}
+            {!onEdit && !onDelete && (
+              <button className={`${t.textMuted} hover:${t.textPrimary} p-2`}><MoreHorizontal size={20} /></button>
+            )}
+          </div>
         </div>
 
+        {/* Gönderi İçeriği */}
         <p className={`${t.textPrimary} mb-4 leading-relaxed`}>{post.content}</p>
 
+        {/* Alt Etkileşim Butonları (Beğeni, Yorum Aç/Kapat, Paylaş) */}
         <div className={`flex items-center justify-between pt-4 border-t ${t.divider}`}>
           <div className="flex items-center gap-6">
             <button
@@ -130,6 +146,7 @@ console.log("Aktif Kullanıcı: ", currentUser);
           <button className={`${t.textSecond} hover:text-green-500 transition-colors focus:outline-none`}><Share2 size={18} /></button>
         </div>
 
+        {/* Yorumlar Bölümü */}
         {showComments && (
           <div className={`mt-4 pt-4 border-t ${t.divider} animate-in fade-in slide-in-from-top-2 duration-300`}>
             <div className="flex gap-3 mb-6 relative">
@@ -156,36 +173,30 @@ console.log("Aktif Kullanıcı: ", currentUser);
                 <div className="text-center text-xs text-blue-500 py-4 animate-pulse">Yorumlar yükleniyor...</div>
               ) : comments.length > 0 ? (
                 comments.map(comment => (
-  // "group" class'ı sayesinde farenin bu yorum bloğunda olup olmadığını anlıyoruz
-  <div key={comment.id} className="flex gap-3 items-start group">
-    <img src={comment.avatar} alt={comment.yazar} className={`w-8 h-8 rounded-full border ${t.cardBorder} mt-1`} />
-    
-    {/* Yorum Balonu */}
-    <div className={`${t.cardBg2} p-3 rounded-2xl rounded-tl-none flex-1 border ${t.cardBorder} relative`}>
-      <div className="flex justify-between items-center mb-1">
-        <div className="flex items-center gap-2">
-          <span className={`font-bold text-xs ${t.textPrimary}`}>{comment.yazar.toUpperCase()}</span>
-          <span className={`text-[10px] ${t.textMuted}`}>
-            {new Date(comment.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-          </span>
-        </div>
-        
-        {/* ÇÖP KUTUSU SİMGESİ */}
-        {currentUser && currentUser.name.toLowerCase() === comment.yazar.toLowerCase() && (
-          <button 
-            onClick={() => handleDeleteComment(comment.id)}
-            // opacity-0 ve group-hover:opacity-100 sayesinde sadece fareyle üzerine gelince belirir
-            className="text-red-500/50 hover:text-red-600 p-1 rounded-full hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
-            title="Yorumu Sil"
-          >
-            <Trash2 size={15} />
-          </button>
-        )}
-      </div>
-      <p className={`text-sm ${t.textSecond} leading-relaxed`}>{comment.content}</p>
-    </div>
-  </div>
-))
+                  <div key={comment.id} className="flex gap-3 items-start group">
+                    <img src={comment.avatar} alt={comment.yazar} className={`w-8 h-8 rounded-full border ${t.cardBorder} mt-1`} />
+                    <div className={`${t.cardBg2} p-3 rounded-2xl rounded-tl-none flex-1 border ${t.cardBorder} relative`}>
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-bold text-xs ${t.textPrimary}`}>{comment.yazar.toUpperCase()}</span>
+                          <span className={`text-[10px] ${t.textMuted}`}>
+                            {new Date(comment.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        {currentUser && currentUser.name.toLowerCase() === comment.yazar.toLowerCase() && (
+                          <button 
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className="text-red-500/50 hover:text-red-600 p-1 rounded-full hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                            title="Yorumu Sil"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+                      <p className={`text-sm ${t.textSecond} leading-relaxed`}>{comment.content}</p>
+                    </div>
+                  </div>
+                ))
               ) : (
                 <div className={`text-center text-xs ${t.textMuted} py-4`}>Bu gönderiye ilk yorumu sen yap!</div>
               )}
