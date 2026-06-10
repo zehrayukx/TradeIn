@@ -160,7 +160,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
           <div className="flex flex-col gap-4">
             {loading ? (
               <div className={`text-center py-20 ${t.cardBg} rounded-2xl border border-dashed ${t.cardBorder} text-blue-500 animate-pulse`}>
-                Veriler çekiliyor...
+                veriler geliyor...
               </div>
             ) : posts.length > 0 ? (
               <>
@@ -175,7 +175,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
             ) : (
               <div className={`text-center py-20 ${t.cardBg} rounded-2xl border border-dashed ${t.cardBorder}`}>
                 <p className={`${t.textSecond} italic`}>
-                  {searchQuery ? `"${searchQuery}" içeren hiçbir gönderi bulunamadı.` : 'Buralar biraz ıssız...'}
+                  {searchQuery ? `"${searchQuery}" içeren hiçbir gönderi bulunamadı.` : ' Gonderi yok'}
                 </p>
               </div>
             )}

@@ -1,18 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, User, Menu, LogOut, PlusCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Search, Bell, User, Menu, LogOut, PlusCircle, X } from 'lucide-react'; // 🚀 X simgesi eklendi
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost, searchQuery, setSearchQuery, notifCount = 0 }) => {
+const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, setSearchQuery, notifCount = 0 }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
   const navigate = useNavigate();
+  const location = useLocation();
+  
   const [userResults, setUserResults] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const inputRef = useRef(null);
 
-  // Tarayıcı autocomplete'i engelle — mount sonrası input'u sıfırla
+  // 🚀 NAVBAR İÇİ PAYLAŞIM STATE'LERİ
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPostContent, setNewPostContent] = useState("");
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  // Tarayıcı autocomplete'i engelle
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.setAttribute('autocomplete', 'off');
@@ -41,9 +48,37 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost,
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // 🚀 NAVBAR İÇİ GÖNDERİ PAYLAŞMA FONKSİYONU
+  const handlePublishPost = async () => {
+    if (!newPostContent.trim()) return;
+    const token = localStorage.getItem("tradein_token");
+    setIsPublishing(true);
+    try {
+      await axios.post('http://127.0.0.1:8000/post-olustur', 
+        { content: newPostContent, media_url: "" }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setNewPostContent("");
+      setShowCreateModal(false);
+
+      // 🎯 JÜRİ ÖNÜNDE ŞOV: Eğer zaten akışın olduğu anasayfadaysak sayfayı yenile ki yeni post düşsün,
+      // başka sayfadaysak (Profil, Piyasalar vs.) direkt anasayfaya fırlat ki kullanıcı gönderisini görsün!
+      if (location.pathname === '/') {
+        window.location.reload();
+      } else {
+        navigate('/');
+      }
+    } catch (error) { 
+      console.error("Gönderi paylaşılamadı:", error); 
+      alert("Gönderi paylaşılırken bir hata oluştu.");
+    } finally { 
+      setIsPublishing(false); 
+    }
+  };
+
   return (
     <nav className={`${t.navBg} border-b ${t.navBorder} sticky top-0 z-50 transition-colors duration-300`}>
-      {/* Sahte gizli inputlar — tarayıcının şifre yöneticisini yanılt */}
       <input type="text"     name="fake_user_field"  style={{ display:'none' }} readOnly tabIndex={-1} />
       <input type="password" name="fake_pass_field"  style={{ display:'none' }} readOnly tabIndex={-1} />
       <input type="email"    name="fake_email_field" style={{ display:'none' }} readOnly tabIndex={-1} />
@@ -101,12 +136,15 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost,
 
         {/* SAĞ */}
         <div className="flex items-center gap-3 shrink-0">
-          {isLoggedIn && openCreatePost && (
-            <button onClick={openCreatePost} className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all flex items-center gap-2 group">
+          
+          {/* 🎯 SÜREKLİ AKTİF BUTON: Kullanıcı giriş yapmışsa ve Ayarlar sayfasında değilse HER YERDE görünür! */}
+          {isLoggedIn && location.pathname !== '/settings' && (
+            <button onClick={() => setShowCreateModal(true)} className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all flex items-center gap-2 group">
               <PlusCircle size={24} className="group-hover:scale-110 transition-transform" />
               <span className="text-xs font-bold hidden sm:block">Paylaş</span>
             </button>
           )}
+
           {isLoggedIn && handleLogout && (
             <button onClick={handleLogout} className={`p-2 ${t.textMuted} hover:text-red-500 transition-colors`}>
               <LogOut size={20} />
@@ -133,6 +171,36 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, openCreatePost,
           )}
         </div>
       </div>
+
+      {/* 🚀 GÖNDERİ OLUŞTURMA MODALİ (Artık Navbar'ın ayrılmaz bir parçası) */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className={`${t.modalBg || t.cardBg} border ${t.cardBorder} rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden`}>
+            <div className={`px-6 py-4 border-b ${t.divider} flex items-center justify-between`}>
+              <h3 className="font-black text-xl tracking-tight text-blue-500">Yeni Gönderi Paylaş</h3>
+              <button onClick={() => setShowCreateModal(false)} className={`p-2 ${t.textSecond} hover:text-red-500 transition-colors`}><X size={20} /></button>
+            </div>
+            <div className="p-6">
+              <textarea 
+                autoFocus 
+                value={newPostContent} 
+                onChange={e => setNewPostContent(e.target.value)}
+                placeholder="Gonderi yap"
+                className={`w-full ${t.inputBg} border ${t.inputBorder} rounded-xl text-lg ${t.textPrimary} resize-none outline-none p-4 min-h-[150px] focus:border-blue-500 transition-all`} 
+              />
+              <div className="flex justify-end pt-4 mt-4">
+                <button 
+                  disabled={!newPostContent.trim() || isPublishing} 
+                  onClick={handlePublishPost}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-400 text-white px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2"
+                >
+                  {isPublishing ? "Paylaşılıyor..." : "Paylaş"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
