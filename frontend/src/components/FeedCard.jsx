@@ -68,7 +68,7 @@ const FeedCard = ({ post, onLike, onEdit, currentUser }) => {
     if (!token) return;
 
     try {
-      await axios.delete(`http://127.0.0.1:8000/yorum/${commentId}`, {
+      await axios.delete(`http://127.0.0.1:8000/post/yorum-sil/${commentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
