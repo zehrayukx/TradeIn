@@ -224,9 +224,6 @@ function Portfolio({ isLoggedIn, setIsLoggedIn }) {
                         <PortfolioAssetCard key={item.id} t={t} item={item} icon={getAssetIcon(item.name)} formatAmount={formatAmount} onDelete={() => handleDeleteAsset(item.id)} />
                       ))}
                     </div>
-                    <p className={`mt-4 text-sm ${t.textSecond}`}>
-                      Toplam Portföy Miktarı: <span className={t.textPrimary}>{formatAmount(totalAmount)}</span>
-                    </p>
                   </>
                 ) : (
                   <EmptyPortfolio t={t} />

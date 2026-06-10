@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Search, Star, Bell, ChevronDown,
   TrendingUp, TrendingDown, Newspaper, CalendarDays,
+  X, Target, Activity, Smartphone, Mail,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
@@ -44,6 +45,15 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const [searchQuery,     setSearchQuery]     = useState("");
   const [favorites,       setFavorites]       = useState([]);
   const [alarmSymbols,    setAlarmSymbols]    = useState([]);
+
+  // ── Alarm Modal state ──
+  const [showAlarmModal,    setShowAlarmModal]    = useState(false);
+  const [modalAsset,        setModalAsset]        = useState(ASSET_TYPES[0]);
+  const [modalTargetPrice,  setModalTargetPrice]  = useState('');
+  const [modalCondition,    setModalCondition]    = useState('above');
+  const [modalNotifyEmail,  setModalNotifyEmail]  = useState(true);
+  const [modalNotifyBrowser,setModalNotifyBrowser]= useState(true);
+  const [modalDropdownOpen, setModalDropdownOpen] = useState(false);
   const [isSidebarOpen,   setIsSidebarOpen]   = useState(true);
 
   const handleLogout = () => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); };
@@ -151,7 +161,44 @@ useEffect(() => {
       else { await addFavorite(symbol); setFavorites(prev => [...prev, symbol]); }
     } catch { setFavorites(prev => prev.includes(symbol) ? prev.filter(i => i !== symbol) : [...prev, symbol]); }
   };
-  const handleAlarmClick = (symbol) => setAlarmSymbols(prev => prev.includes(symbol) ? prev : [...prev, symbol]);
+  const handleAlarmClick = (symbol) => {
+    // Sembolü assetType'a çevir
+    const nameMap = {
+      BTC: 'Bitcoin', ETH: 'Bitcoin',
+      USDTRY: 'Dolar', EURTRY: 'Euro', GBPTRY: 'Sterlin',
+      'XAU/USD': 'Altın', 'XAG/USD': 'Gümüş', BIST: 'Borsa',
+    };
+    const assetName = nameMap[symbol] || 'Bitcoin';
+    const asset = ASSET_TYPES.find(a => a.name === assetName) || ASSET_TYPES[0];
+    setModalAsset(asset);
+    setModalTargetPrice('');
+    setModalCondition('above');
+    setModalDropdownOpen(false);
+    setAlarmSymbols(prev => prev.includes(symbol) ? prev : [...prev, symbol]);
+    setShowAlarmModal(true);
+  };
+
+  const handleModalCreate = () => {
+    if (!modalTargetPrice || isNaN(Number(modalTargetPrice)) || Number(modalTargetPrice) <= 0) return;
+    // Alarm oluşturma — backend bağlantısı backend ekibine bırakıldı
+    // Şimdilik localStorage'a kaydedelim (Alarms sayfasıyla uyumlu format)
+    const newAlarm = {
+      id: Date.now(),
+      asset: modalAsset.name,
+      target_price: Number(modalTargetPrice),
+      condition: modalCondition,
+      notify_email: modalNotifyEmail,
+      notify_browser: modalNotifyBrowser,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem('tradein_alarms') || '[]');
+      localStorage.setItem('tradein_alarms', JSON.stringify([newAlarm, ...existing]));
+    } catch {}
+    setShowAlarmModal(false);
+    setModalTargetPrice('');
+  };
 
   /* Tema bazlı lokal renkler (Tailwind'de dinamik interpolasyon çalışmaz, inline style ile override) */
   const searchBg    = isDark ? "#071224"  : "#f1f5f9";
@@ -295,11 +342,12 @@ useEffect(() => {
                           <button onClick={() => handleFavorite(item.symbol)} className="hover:text-yellow-400 transition">
                             <Star size={20} fill={favorites.includes(item.symbol) ? "#facc15" : "transparent"} className={t.textSecond} />
                           </button>
-                          <Link to={`/alarms?symbol=${encodeURIComponent(item.symbol)}`} onClick={() => handleAlarmClick(item.symbol)}
+                          <button
+                            onClick={() => handleAlarmClick(item.symbol)}
                             title={`${item.symbol} için alarm kur`}
                             className={`transition ${alarmSymbols.includes(item.symbol) ? "text-blue-400" : `${t.textSecond} hover:text-blue-400`}`}>
                             <Bell size={20} fill={alarmSymbols.includes(item.symbol) ? "#60a5fa" : "transparent"} />
-                          </Link>
+                          </button>
                           <Link to={`/markets/${item.symbol}`}
                             className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition whitespace-nowrap">
                             Detay
@@ -380,6 +428,143 @@ useEffect(() => {
             </aside>
           </div>
         </main>
+      </div>
+
+      {/* ── Alarm Kurma Popup ── */}
+      {showAlarmModal && (
+        <AlarmModalInMarkets
+          t={t}
+          asset={modalAsset}                 setAsset={setModalAsset}
+          targetPrice={modalTargetPrice}     setTargetPrice={setModalTargetPrice}
+          condition={modalCondition}         setCondition={setModalCondition}
+          notifyEmail={modalNotifyEmail}     setNotifyEmail={setModalNotifyEmail}
+          notifyBrowser={modalNotifyBrowser} setNotifyBrowser={setModalNotifyBrowser}
+          dropdownOpen={modalDropdownOpen}   setDropdownOpen={setModalDropdownOpen}
+          onClose={() => { setShowAlarmModal(false); setModalTargetPrice(''); }}
+          onCreate={handleModalCreate}
+        />
+      )}
+    </div>
+  );
+}
+
+
+// ── Markets içi assetTypes (Alarms.jsx'tekiyle aynı) ──
+const ASSET_TYPES = [
+  { name: "Bitcoin", icon: "₿",  color: "#f7931a", unit: "USD"    },
+  { name: "Dolar",   icon: "$",  color: "#4ade80", unit: "TRY"    },
+  { name: "Euro",    icon: "€",  color: "#60a5fa", unit: "TRY"    },
+  { name: "Sterlin", icon: "£",  color: "#a78bfa", unit: "TRY"    },
+  { name: "Altın",   icon: "🟡", color: "#fbbf24", unit: "TRY/gr" },
+  { name: "Gümüş",  icon: "⚪", color: "#94a3b8", unit: "TRY/gr" },
+  { name: "Borsa",   icon: "📈", color: "#34d399", unit: "BIST"   },
+];
+
+function fmt(val) {
+  return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(val);
+}
+
+// ── Alarm Modal (Alarms.jsx'tekiyle birebir aynı görünüm) ──
+function AlarmModalInMarkets({
+  t, asset, setAsset, targetPrice, setTargetPrice,
+  condition, setCondition, notifyEmail, setNotifyEmail,
+  notifyBrowser, setNotifyBrowser, dropdownOpen, setDropdownOpen,
+  onClose, onCreate,
+}) {
+  const valid = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className={`w-full max-w-md rounded-2xl border border-blue-500/30 ${t.modalBg} shadow-2xl p-6 transition-colors duration-300`}>
+        {/* Başlık */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <Target size={20} className="text-blue-400" />
+            <h2 className={`text-lg font-bold ${t.textPrimary}`}>Yeni Alarm Kur</h2>
+          </div>
+          <button onClick={onClose} className={`p-1.5 ${t.textMuted} hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10`}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Varlık */}
+        <div className="mb-4">
+          <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Varlık</label>
+          <div className="relative">
+            <button onClick={() => setDropdownOpen(!dropdownOpen)}
+              className={`w-full flex items-center justify-between gap-3 rounded-xl border ${t.inputBorder} ${t.inputBg} px-4 py-3 text-sm ${t.textPrimary} hover:border-blue-500/50 transition-colors`}>
+              <div className="flex items-center gap-2">
+                <span>{asset.icon}</span>
+                <span className="font-semibold">{asset.name}</span>
+                <span className={`${t.textMuted} text-xs`}>({asset.unit})</span>
+              </div>
+              <ChevronDown size={16} className={`${t.textMuted} transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+            {dropdownOpen && (
+              <div className={`absolute top-full mt-1 w-full rounded-xl border ${t.cardBorder} ${t.dropdownBg} overflow-hidden z-10 shadow-xl`}>
+                {ASSET_TYPES.map(a => (
+                  <button key={a.name} onClick={() => { setAsset(a); setDropdownOpen(false); }}
+                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-sm ${t.hoverBg} transition-colors text-left`}>
+                    <span>{a.icon}</span>
+                    <span className={`font-semibold ${t.textPrimary}`}>{a.name}</span>
+                    <span className={`${t.textMuted} text-xs ml-auto`}>{a.unit}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Koşul */}
+        <div className="mb-4">
+          <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Koşul</label>
+          <div className="grid grid-cols-2 gap-2">
+            {[["above","Üzerine Çıkınca","emerald",TrendingUp],["below","Altına Düşünce","red",TrendingDown]].map(([val,label,color,Icon]) => (
+              <button key={val} onClick={() => setCondition(val)}
+                className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                  condition === val
+                    ? `border-${color}-500/50 bg-${color}-500/15 text-${color}-400`
+                    : `${t.inputBorder} ${t.inputBg} ${t.textSecond} hover:border-gray-500`}`}>
+                <Icon size={15} /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hedef Fiyat */}
+        <div className="mb-5">
+          <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Hedef Fiyat ({asset.unit})</label>
+          <div className={`flex items-center rounded-xl border ${t.inputBorder} ${t.inputBg} px-4 focus-within:border-blue-500 transition-colors`}>
+            <Activity size={16} className={`${t.textMuted} mr-2 flex-shrink-0`} />
+            <input type="number" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} placeholder="Örn: 35.50"
+              className={`h-12 flex-1 bg-transparent text-sm ${t.textPrimary} outline-none ${t.placeholder}`} />
+            <span className={`text-xs ${t.textMuted}`}>{asset.unit}</span>
+          </div>
+        </div>
+
+        {/* Bildirim Kanalları */}
+        <div className="mb-6">
+          <label className={`block text-xs font-semibold ${t.textMuted} mb-3 uppercase tracking-wider`}>Bildirim Kanalları</label>
+          <div className="space-y-2">
+            {[[notifyBrowser,setNotifyBrowser,Smartphone,"text-blue-400","Tarayıcı Bildirimi"],
+              [notifyEmail,setNotifyEmail,Mail,"text-purple-400","E-posta Bildirimi"]].map(([val,setter,Icon,ic,lbl],i) => (
+              <label key={i} className={`flex items-center justify-between p-3 rounded-xl border ${t.cardBorder} ${t.deepCardBg} cursor-pointer hover:border-gray-500 transition-colors`}>
+                <div className={`flex items-center gap-2.5 text-sm ${t.textSecond}`}><Icon size={16} className={ic} />{lbl}</div>
+                <div onClick={() => setter(!val)} className={`w-10 h-5 rounded-full transition-all relative cursor-pointer ${val ? "bg-blue-600" : t.toggleOff}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${val ? "left-5" : "left-0.5"}`} />
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Butonlar */}
+        <div className="flex gap-3">
+          <button onClick={onClose} className={`flex-1 py-3 rounded-xl border ${t.cardBorder} ${t.textSecond} ${t.hoverText} ${t.hoverBg} text-sm font-semibold transition-all`}>İptal</button>
+          <button onClick={onCreate} disabled={!valid}
+            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${valid ? "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20" : `${t.cardBg2} ${t.textMuted} cursor-not-allowed`}`}>
+            Alarmı Kur
+          </button>
+        </div>
       </div>
     </div>
   );
