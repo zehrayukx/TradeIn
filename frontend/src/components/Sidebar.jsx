@@ -1,10 +1,11 @@
 import React from 'react';
 import { Home, BarChart2, Bell, Heart, Settings, LogIn, LogOut, Wallet, User } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom'; // 🚀 useNavigate eklendi
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
 const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn, alarmNotifCount = 0, notifBadge = 0 }) => {
   const location = useLocation();
+  const navigate = useNavigate(); // 🚀 Yönlendirme için köprü kuruldu
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
 
@@ -22,6 +23,13 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn, alarmNotifCount = 0, notif
   ];
 
   const isActive = (path) => location.pathname === path;
+
+  // 🚀 MERKEZİ ÇIKIŞ FONKSİYONU: Her sayfada kusursuz çalışır
+  const handleLogoutClick = () => {
+    localStorage.removeItem("tradein_token"); // 1. Tarayıcı hafızasını temizle
+    if (setIsLoggedIn) setIsLoggedIn(false);  // 2. Global login durumunu kapat
+    navigate("/login");                       // 3. Kullanıcıyı giriş sayfasına fırlat
+  };
 
   return (
     <aside className={`${t.sidebarBg} border-r ${t.navBorder} h-[calc(100vh-64px)] sticky top-16 transition-all duration-300 z-40 flex flex-col ${isOpen ? 'w-64' : 'w-0 overflow-hidden'}`}>
@@ -69,7 +77,7 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn, alarmNotifCount = 0, notif
         <div className={`px-4 mt-auto border-t ${t.divider} pt-4 pb-4`}>
           {isLoggedIn ? (
             <button
-              onClick={() => setIsLoggedIn(false)}
+              onClick={handleLogoutClick} // 🎯 Yeni yazdığımız zırhlı fonksiyon bağlandı
               className={`flex items-center gap-3 w-full p-3 ${t.logoutText} ${t.logoutHover} rounded-xl transition-all font-semibold text-sm`}
             >
               <LogOut size={20} />
