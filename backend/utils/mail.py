@@ -10,9 +10,9 @@ load_dotenv()
 def send_alarm_email(to_email: str, asset: str, target_price: float, current_price: float, condition: str):
     SENDER_EMAIL = os.getenv("EMAIL_ADDRESS")
     APP_PASSWORD = os.getenv("EMAIL_PASSWORD")
-    durum_metni = "Üzerine Çıktı 📈" if condition.lower() == "above" else "Altına Düştü 📉"
-    subject = f"🔔 TradeIn Alarm: {asset} Hedefe Ulaştı!"
-    body = f"Merhaba,\n\nTradeIn alarmı tetiklendi!\n💰 Varlık: {asset}\n🎯 Hedeflenen: {target_price}\n⚡ Tetiklenme: {current_price}\n📊 Koşul: {durum_metni}"
+    durum_metni = "Üzerine Çıktı " if condition.lower() == "above" else "Altına Düştü "
+    subject = f"TradeIn Alarm: {asset} Hedefe Ulaştı!"
+    body = f"Merhaba,\n\nTradeIn alarmı tetiklendi!\n Varlık: {asset}\n Hedeflenen: {target_price}\n Tetiklenme: {current_price}\n Koşul: {durum_metni}"
     
     msg = MIMEMultipart()
     msg['From'] = SENDER_EMAIL
@@ -36,15 +36,15 @@ def send_social_notification_email(to_email: str, actor_name: str, notification_
         return
 
     if notification_type == "follow":
-        subject = f"🔔 TradeIn: {actor_name} seni takip etmeye başladı!"
+        subject = f"Bildirim: TradeIn: {actor_name} seni takip etmeye başladı!"
         action_text = "seni takip etmeye başladı."
         details_html = ""
     elif notification_type == "like":
-        subject = f"❤️ TradeIn: {actor_name} gönderini beğendi!"
+        subject = f"Bildirim: TradeIn: {actor_name} gönderini beğendi!"
         action_text = "gönderini beğendi."
         details_html = f"<p style='color: #64748b; font-style: italic; margin-top: 8px;'>\"{post_preview}\"</p>"
     elif notification_type == "comment":
-        subject = f"💬 TradeIn: {actor_name} gönderine yorum yaptı!"
+        subject = f"Bildirim: TradeIn: {actor_name} gönderine yorum yaptı!"
         action_text = "gönderine yorum yaptı."
         details_html = f"""
         <p style='color: #64748b; font-size: 13px; margin-bottom: 4px;'><b>Gönderiniz:</b> \"{post_preview}\"</p>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, User, Menu, LogOut, PlusCircle, X } from 'lucide-react'; // 🚀 X simgesi eklendi
+import { Search, Bell, User, Menu, LogOut, PlusCircle, X } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, setSearchQuery, notifCount = 0 }) => {
+// 🚀 1. ADIM: Props listesinden notifCount'u kaldırdık, artık içeride yöneteceğiz
+const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, setSearchQuery }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
   const navigate = useNavigate();
@@ -14,10 +15,48 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const inputRef = useRef(null);
 
-  // 🚀 NAVBAR İÇİ PAYLAŞIM STATE'LERİ
+  // NAVBAR İÇİ PAYLAŞIM STATE'LERİ
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
+
+  // 🚀 2. ADIM: Bildirim sayısını hafızada tutacak lokal state
+  const [notifCount, setNotifCount] = useState(0);
+
+  // 🚀 3. ADIM: Bildirimleri backend'den çeken asenkron mekanizma
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setNotifCount(0);
+      return;
+    }
+
+    const fetchNavbarNotifications = async () => {
+      try {
+        const token = localStorage.getItem("tradein_token");
+        if (!token) return;
+
+        // Backend'deki sosyal bildirim ucuna istek atıyoruz
+        const res = await axios.get("http://127.0.0.1:8000/bildirimler", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        // Sadece okunmamış bildirimleri (is_read === false) filtrele ve sayısını al
+        const unreadCount = res.data.filter(n => !n.is_read).length;
+        setNotifCount(unreadCount);
+
+      } catch (error) {
+        console.error("Navbar bildirim sayısı çekilemedi:", error);
+      }
+    };
+
+    // İlk açılışta ve sayfa geçişlerinde tetikle
+    fetchNavbarNotifications();
+
+    // 🎯 Sidebar ile tam senkronize olması için her 15 saniyede bir arkadan verileri tazele
+    const interval = setInterval(fetchNavbarNotifications, 15000);
+    return () => clearInterval(interval);
+
+  }, [isLoggedIn, location.pathname]);
 
   // Tarayıcı autocomplete'i engelle
   useEffect(() => {
@@ -48,7 +87,6 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // 🚀 NAVBAR İÇİ GÖNDERİ PAYLAŞMA FONKSİYONU
   const handlePublishPost = async () => {
     if (!newPostContent.trim()) return;
     const token = localStorage.getItem("tradein_token");
@@ -62,15 +100,13 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
       setNewPostContent("");
       setShowCreateModal(false);
 
-      // 🎯 JÜRİ ÖNÜNDE ŞOV: Eğer zaten akışın olduğu anasayfadaysak sayfayı yenile ki yeni post düşsün,
-      // başka sayfadaysak (Profil, Piyasalar vs.) direkt anasayfaya fırlat ki kullanıcı gönderisini görsün!
       if (location.pathname === '/') {
         window.location.reload();
       } else {
         navigate('/');
       }
     } catch (error) { 
-      console.error("Gönderi paylaşılamadı:", error); 
+      console.error(error);
       alert("Gönderi paylaşılırken bir hata oluştu.");
     } finally { 
       setIsPublishing(false); 
@@ -81,7 +117,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
     <nav className={`${t.navBg} border-b ${t.navBorder} sticky top-0 z-50 transition-colors duration-300`}>
       <input type="text"     name="fake_user_field"  style={{ display:'none' }} readOnly tabIndex={-1} />
       <input type="password" name="fake_pass_field"  style={{ display:'none' }} readOnly tabIndex={-1} />
-      <input type="email"    name="fake_email_field" style={{ display:'none' }} readOnly tabIndex={-1} />
+      <input type="email"    name="fake_email_field" style={{ display: 'none' }} readOnly tabIndex={-1} />
 
       <div className="px-4 h-16 flex items-center justify-between gap-4">
 
@@ -137,7 +173,6 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
         {/* SAĞ */}
         <div className="flex items-center gap-3 shrink-0">
           
-          {/* 🎯 SÜREKLİ AKTİF BUTON: Kullanıcı giriş yapmışsa ve Ayarlar sayfasında değilse HER YERDE görünür! */}
           {isLoggedIn && location.pathname !== '/settings' && (
             <button onClick={() => setShowCreateModal(true)} className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all flex items-center gap-2 group">
               <PlusCircle size={24} className="group-hover:scale-110 transition-transform" />
@@ -150,6 +185,8 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
               <LogOut size={20} />
             </button>
           )}
+
+          {/* 🎯 BİLDİRİM ÇANI SİMGESİ (Artık lokal state'e bağlı ve kalıcı) */}
           <Link to="/notifications" className={`p-2 ${t.textMuted} ${t.hoverText} transition-colors relative flex items-center justify-center`}>
             <Bell size={24} />
             {notifCount > 0 && (
@@ -158,6 +195,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
               </span>
             )}
           </Link>
+
           {isLoggedIn ? (
             <Link to="/profile" className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] ml-1 shrink-0">
               <img src={`https://ui-avatars.com/api/?name=${user?.name || 'U'}&background=random&color=fff`} alt="Profil"
@@ -172,7 +210,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
         </div>
       </div>
 
-      {/* 🚀 GÖNDERİ OLUŞTURMA MODALİ (Artık Navbar'ın ayrılmaz bir parçası) */}
+      {/* GÖNDERİ OLUŞTURMA MODALİ */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
           <div className={`${t.modalBg || t.cardBg} border ${t.cardBorder} rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden`}>
@@ -185,7 +223,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
                 autoFocus 
                 value={newPostContent} 
                 onChange={e => setNewPostContent(e.target.value)}
-                placeholder="Gonderi yap"
+                placeholder="paylas: "
                 className={`w-full ${t.inputBg} border ${t.inputBorder} rounded-xl text-lg ${t.textPrimary} resize-none outline-none p-4 min-h-[150px] focus:border-blue-500 transition-all`} 
               />
               <div className="flex justify-end pt-4 mt-4">

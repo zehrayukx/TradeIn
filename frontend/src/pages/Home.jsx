@@ -166,7 +166,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
               <>
                 {searchQuery && (
                   <div className="bg-blue-900/20 border border-blue-500/30 text-blue-400 px-4 py-3 rounded-xl mb-2 flex items-center justify-between">
-                    <span className="font-semibold">"{searchQuery}" için sonuçlar gösteriliyor</span>
+                    <span className="font-semibold">"{searchQuery}" için sonuçlar:</span>
                     <button onClick={() => { setSearchQuery(""); setActiveTab('Trendler'); }} className="text-sm underline hover:text-blue-300">Aramayı Temizle</button>
                   </div>
                 )}
@@ -205,7 +205,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
                     autoFocus
                     value={newPostContent}
                     onChange={(e) => setNewPostContent(e.target.value)}
-                    placeholder="Piyasalarda neler oluyor?"
+                    placeholder="paylas"
                     className={`w-full bg-transparent border-none text-lg ${t.textPrimary} placeholder-gray-400 resize-none outline-none min-h-[150px] py-2`}
                   />
                   <div className={`flex items-center justify-between pt-4 border-t ${t.divider} mt-4`}>
@@ -232,7 +232,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
             <button onClick={() => setShowAuthModal(false)} className={`absolute top-4 right-4 ${t.textSecond} ${t.hoverText}`}><X size={18} /></button>
             <div className="w-12 h-12 bg-blue-600/10 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4"><Heart size={22} className="fill-blue-500/20" /></div>
             <h3 className={`text-lg font-bold ${t.textPrimary} mb-2`}>TradeIn Topluluğuna Katılın</h3>
-            <p className={`text-xs ${t.textSecond} mb-6`}>Etkileşime girmek için bir hesabınız olmalı.</p>
+            <p className={`text-xs ${t.textSecond} mb-6`}>hasap acin.</p>
             <div className="flex flex-col gap-2">
               <Link to="/login" className="bg-blue-600 py-2 rounded-xl text-white font-bold text-sm">Giriş Yap</Link>
               <Link to="/register" className={`${t.cardBg2} py-2 rounded-xl ${t.textPrimary} border ${t.cardBorder} font-bold text-sm`}>Üye Ol</Link>

@@ -4,13 +4,29 @@ from pydantic import BaseModel
 from typing import Optional
 import database, models
 from .dependencies import get_current_user, get_optional_current_user
+from sqlalchemy import or_ # 🚀 En tepede or_ fonksiyonunu import etmeyi unutma!
+import os
+import json
+from groq import Groq # 🚀 1. ADIM: Groq kütüphanesini import et
+
+# 🎯 AKILLI KATEGORİ SÖZLÜĞÜ (Keyword Mapping)
+# Kullanıcı soldaki anahtara bastığında, sağdaki dizideki tüm kelimeler aranır.
+FINANCE_CATEGORY_MAP = {
+    "bitcoin": ["bitcoin", "btc", "ethereum", "eth", "kripto", "crypto", "solana", "altcoin","dogecoin","xrp","cardano","ada","polkadot","dot","binancecoin","bnb","avalanche","avax","chainlink","link","litecoin","ltc"],
+    "borsa": ["borsa", "bist", "bist100", "hisse", "halka arz", "spk", "temettü"],
+    "dolar": ["dolar", "usd", "yeşilçete", "fed"],
+    "euro": ["euro", "eur", "ecb"],
+    "altın": ["altın", "gold", "ons", "gram altın", "xau"],
+    "gümüş": ["gümüş", "silver", "xag"]
+}
 
 # --- YAPAY ZEKA KÜTÜPHANELERİ ---
-import os
+
 from pathlib import Path 
 from dotenv import load_dotenv
 from groq import Groq  # 🚀 Resmi Groq kütüphanemiz
 from utils.mail import send_social_notification_email
+
 
 # .env dosyasını bul ve yükle
 backend_dizini = Path(__file__).resolve().parent.parent
@@ -18,6 +34,9 @@ env_adresi = backend_dizini / ".env"
 load_dotenv(dotenv_path=env_adresi, override=True)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+groq_client = Groq(api_key=GROQ_API_KEY)
+
 
 # Yapılandırma
 client = None
@@ -85,7 +104,7 @@ async def yapay_zeka_onayi(metin: str) -> bool:
 
     # 2. YOL (FALLBACK): API yoksa veya çökerse lokal regex koruması devreye girer
     temiz_metin = metin.lower().strip()
-    kara_liste = ["salak", "beyinsiz", "gerizekali", "gerizekalı", "aptal", "piç", "orospu", "amk"]
+    kara_liste = []
     for kelime in kara_liste:
         if kelime in temiz_metin:
             print(f"🚨 [Lokal Filtre]: Argo tespit edildi! Kelime: '{kelime}'")
@@ -133,16 +152,66 @@ async def post_guncelle(post_id: int, gelen_veri: PostUpdate, db: Session = Depe
 
 @router.get("/populer-postlar")
 def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
+    # Orijinal kullanıcı join sorgun
     query = db.query(models.Post, models.User.username).join(models.User)
-    if hashtag: query = query.filter(models.Post.content.ilike(f"%{hashtag}%"))
     results = query.all()
     
+    # 🚀 3. ADIM: EĞER HASHTAG (KATEGORİ) SEÇİLİYSE YAPAY ZEKAYI TETİKLE
+    if hashtag and results:
+        # Groq'a göndermek üzere tüm postların sadece id ve içeriklerini minik bir listeye alıyoruz
+        posts_for_ai = [{"id": p.id, "content": p.content} for p, u in results]
+        
+        system_prompt = (
+            "Sen gelişmiş bir finansal analist yapay zekasısın. Sana gönderilen sosyal medya post listesini, "
+            "kullanıcının seçtiği finansal kategoriye göre analiz etmelisin. Görevin, içerik olarak (doğrudan veya anlamsal olarak) "
+            "bu kategoriyle ilişkili olan postların ID'lerini ayıklamaktır.\n\n"
+            "ZORUNLU KURAL: Çıktın SADECE ve SADECE şu formatta bir JSON olmalıdır, asla açıklama yazma:\n"
+            '{"matched_ids": [1, 4, 7]}'
+        )
+        
+        user_prompt = f"Hedef Finansal Kategori: {hashtag}\nPost Listesi: {json.dumps(posts_for_ai, ensure_ascii=False)}"
+        
+        try:
+            # Groq üzerinden en hızlı model olan Llama 3'ü (veya benzerini) çağırıyoruz
+            chat_completion = groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                model="llama3-8b-8192", # ya da kullandığın aktif groq modeli
+                temperature=0.0, # Tutarlı ve kesin yanıt vermesi için 0 yapıyoruz
+                response_format={"type": "json_object"} # Yanıtın kesinlikle JSON gelmesini zorunlu kılıyoruz
+            )
+            
+            # Gelen yanıtı parse et ve eşleşen ID listesini al
+            ai_response = json.loads(chat_completion.choices[0].message.content)
+            matched_ids = ai_response.get("matched_ids", [])
+            
+            # Veritabanı sonuçlarımızı, yapay zekanın onay verdiği ID'lere göre filtrele!
+            results = [(p, u) for p, u in results if p.id in matched_ids]
+            
+        except Exception as e:
+            print(f"Groq Filtreleme Hatası: {e}")
+            # Eğer yapay zeka katmanı anlık bir problem yaşarsa sistem çökmesin diye 
+            # klasik kelime eşleşmesi filtresine (Fallback) düşüyoruz:
+            results = [(p, u) for p, u in results if hashtag.lower() in p.content.lower()]
+
+    # 🔒 4. ADIM: Senin Orijinal Döngün ve Formatlaman (Milimetrik olarak korundu)
     formatted_posts = []
     for p, u in results:
         like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
         comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
         is_liked = bool(current_user and db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first())
-        formatted_posts.append({"post_id": p.id, "icerik": p.content, "yazar": u, "tarih": p.created_at, "likes": like_count, "comments": comment_count, "isLiked": is_liked})
+        formatted_posts.append({
+            "post_id": p.id, 
+            "icerik": p.content, 
+            "yazar": u, 
+            "tarih": p.created_at, 
+            "likes": like_count, 
+            "comments": comment_count, 
+            "isLiked": is_liked
+        })
+        
     formatted_posts.sort(key=lambda x: x["likes"], reverse=True)
     return formatted_posts
 
@@ -150,6 +219,7 @@ def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(databas
 def post_begen(post_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post: raise HTTPException(status_code=404, detail="Post bulunamadı")
+    
     existing_like = db.query(models.Like).filter(models.Like.post_id == post_id, models.Like.user_id == current_user.id).first()
     if existing_like:
         db.delete(existing_like)
@@ -159,24 +229,27 @@ def post_begen(post_id: int, db: Session = Depends(database.get_db), current_use
         new_like = models.Like(post_id=post_id, user_id=current_user.id)
         db.add(new_like)
         db.commit()
-        # Beğeni başarıyla eklendiğinde (new_like commit edildikten hemen sonra):
-    if post.user_id != current_user.id:
-        yeni_bildirim = models.Notification(
-            user_id=post.user_id,
-            actor_id=current_user.id,
-            type="like",
-            post_id=post.id
-        )
-        db.add(yeni_bildirim)
-        db.commit()
-        hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
-        if hedef_kullanici and hedef_kullanici.email:
-            send_social_notification_email(
-                to_email=hedef_kullanici.email,
-                actor_name=current_user.username,
-                notification_type="like",
-                post_preview=post.content[:40] + "..."
+        
+        # Bildirim SADECE başkasının gönderisini beğenirsek gitsin
+        if post.user_id != current_user.id:
+            yeni_bildirim = models.Notification(
+                user_id=post.user_id,
+                actor_id=current_user.id,
+                type="like",
+                post_id=post.id
             )
+            db.add(yeni_bildirim)
+            db.commit()
+            hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
+            if hedef_kullanici and hedef_kullanici.email:
+                send_social_notification_email(
+                    to_email=hedef_kullanici.email,
+                    actor_name=current_user.username,
+                    notification_type="like",
+                    post_preview=post.content[:40] + "..."
+                )
+                
+        # 🚀 DÜZELTME: Return işlemi if bloğundan bağımsız, her halükarda dönecek!
         return {"mesaj": "Post beğenildi", "begenildi": True}
 
 @router.post("/post/{post_id}/yorum")
