@@ -67,6 +67,11 @@ class PostUpdate(BaseModel):
 
 class CommentCreate(BaseModel):
     content: str
+    # 🚀 1. Yeni Şema (Dosyanın üst kısımlarındaki şemaların arasına veya direkt endpointin üstüne ekleyebilirsin)
+class CommentUpdate(BaseModel):
+    content: str
+
+
 
 # --- YAPAY ZEKA MODERATÖR FONKSİYONU (HİBRİT MİMARİ) ---
 async def yapay_zeka_onayi(metin: str) -> bool:
@@ -289,6 +294,34 @@ async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(da
             )
         return {"mesaj": "Yorum eklendi"}
     
+
+
+# 🚀 2. Yorum Güncelleme Endpoint'i
+@router.put("/post/yorum-guncelle/{yorum_id}")
+async def yorum_guncelle(yorum_id: int, gelen_veri: CommentUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    # 1. Yorumu bul
+    yorum = db.query(models.Comment).filter(models.Comment.id == yorum_id).first()
+    if not yorum: 
+        raise HTTPException(status_code=404, detail="Yorum bulunamadı")
+    
+    # 2. Yetki kontrolü (Sadece yorumun sahibi düzenleyebilir)
+    if yorum.user_id != current_user.id: 
+        raise HTTPException(status_code=403, detail="Bu yorumu düzenleme yetkiniz yok")
+    
+    # 3. YZ Koruması: Yeni yorum içeriği de Groq onayından geçmeli!
+    is_clean = await yapay_zeka_onayi(gelen_veri.content)
+    if not is_clean:
+        raise HTTPException(
+            status_code=400, 
+            detail="Düzenlediğiniz yorum topluluk kurallarımıza aykırı olduğu için yapay zeka tarafından engellendi."
+        )
+    
+    # 4. Güncelle ve kaydet
+    yorum.content = gelen_veri.content
+    db.commit()
+    
+    return {"mesaj": "Yorum başarıyla güncellendi", "content": yorum.content}
+
 
 @router.delete("/post/sil/{post_id}")
 def post_sil(post_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):

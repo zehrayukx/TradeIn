@@ -19,6 +19,10 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [isFollowed, setIsFollowed] = useState(false);
   const [profileData, setProfileData] = useState(null);
+  
+  // 🚀 EKLENDİ: Ekranı izleyen aktif kullanıcıyı tutmak için
+  const [loggedInUser, setLoggedInUser] = useState(null); 
+  
   const [isLoading, setIsLoading] = useState(true);
   const [userNotFound, setUserNotFound] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -35,6 +39,20 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
     data: [],
     loading: false
   });
+
+  // 🚀 EKLENDİ: Sisteme giriş yapmış aktif kullanıcıyı buluyoruz (Yorum yetkileri ve Navbar avatarı için)
+  useEffect(() => {
+    const fetchLoggedInUser = async () => {
+      const token = localStorage.getItem('tradein_token');
+      if (isLoggedIn && token) {
+        try {
+          const response = await axios.get('http://127.0.0.1:8000/profilim', { headers: { Authorization: `Bearer ${token}` } });
+          setLoggedInUser({ name: response.data.username.replace('@', '') });
+        } catch (error) { console.error(error); }
+      }
+    };
+    fetchLoggedInUser();
+  }, [isLoggedIn]);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -86,30 +104,25 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
     }
   }, [activeTab, profileData, username, isOwnProfile]);
 
-const handleLike = async (postId) => {
+  const handleLike = async (postId) => {
     const token = localStorage.getItem('tradein_token');
     if (!token) { alert('Beğenmek için giriş yapmalısınız!'); return; }
     
-    // 🎯 TILSIM 1: Listeden tıklanan postun şu anki beğeni durumunu buluyoruz
     const targetPost = posts.find(p => p.id === postId);
     if (!targetPost) return;
     
-    // 🎯 TILSIM 2: Eğer zaten beğenildiyse false olacak, beğenilmediyse true olacak (Yerel Geçiş)
     const willBeLiked = !targetPost.isLiked; 
 
     try {
-      // Backend'e isteği atıyoruz (Arka planda veritabanı tıkır tıkır güncelleniyor)
       await axios.post(`http://127.0.0.1:8000/post/${postId}/begen`, {}, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
 
-      // 🎯 TILSIM 3: Eğer "Beğendiklerim" sekmesindeysek ve beğeniyi geri aldıysak listeden anında uçur
       if (activeTab === 'Beğendiklerim' && !willBeLiked) {
         setPosts(prev => prev.filter(p => p.id !== postId));
         return;
       }
 
-      // 🎯 TILSIM 4: Backend'den ne döndüğüne (`response.data`) bakmaksızın state'imizi güvenle güncelliyoruz!
       setPosts(prev => prev.map(p => p.id === postId ? { 
         ...p, 
         likes: willBeLiked ? p.likes + 1 : Math.max(0, p.likes - 1), 
@@ -170,8 +183,7 @@ const handleLike = async (postId) => {
     } catch (error) { console.error(error); }
   };
 
-  // 🚀 GÜNCELLENDİ: Profildeki toplam gönderi sayısını da anlık olarak düşürüyor
-const handleDeletePost = async (postId) => {
+  const handleDeletePost = async (postId) => {
     const isConfirmed = window.confirm("Bu gönderiyi silmek istediğinize emin misiniz? (Tüm beğeni ve yorumlar da silinecektir)");
     if (!isConfirmed) return;
 
@@ -179,22 +191,19 @@ const handleDeletePost = async (postId) => {
     if (!token) return;
 
     try {
-      // 1. Backend'e silme isteği atılıyor
       await axios.delete(`http://127.0.0.1:8000/post/sil/${postId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // 2. 🎯 TILSIMLI DÜZELTME: profileData'yı güncellerken içindeki posts dizisinden de bu postu siliyoruz!
       setProfileData(prev => {
         if (!prev) return prev;
         return {
           ...prev,
-          postsCount: Math.max(0, prev.postsCount - 1), // Sayacı 1 azalt
-          posts: (prev.posts || []).filter(post => post.id !== postId) // 🚀 Gönderiyi ana kaynaktan da uçur!
+          postsCount: Math.max(0, prev.postsCount - 1),
+          posts: (prev.posts || []).filter(post => post.id !== postId)
         };
       });
 
-      // 3. Mevcut posts listesini de anlık olarak filtrele
       setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
       
       alert("Gönderi başarıyla silindi.");
@@ -228,7 +237,8 @@ const handleDeletePost = async (postId) => {
         toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isLoggedIn={isLoggedIn || !!localStorage.getItem('tradein_token')}
         handleLogout={handleLogout}
-        user={profileData ? { name: profileData.name } : null}
+        // 🚀 DÜZELTİLDİ: Artık başkasının profilinde olsan da sağ üstte senin resmin çıkacak!
+        user={loggedInUser} 
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
       />
@@ -355,7 +365,8 @@ const handleDeletePost = async (postId) => {
                     key={post.id} 
                     post={post} 
                     onLike={handleLike}
-                    // 🚀 GÜNCELLENDİ: Eğer kendi profilimizde ve "Gönderilerim" sekmesindeysek silme ve düzenleme fonksiyonlarını gönderiyoruz
+                    // 🚀 BÜYÜK DOKUNUŞ: Ekranı kimin izlediğini FeedCard'a söylüyoruz ki senin yorumlarına silme/düzenleme hakkı versin!
+                    currentUser={loggedInUser} 
                     onEdit={isOwnProfile && activeTab === 'Gönderilerim' ? () => { setEditingPost(post); setEditPostContent(post.content); } : null} 
                     onDelete={isOwnProfile && activeTab === 'Gönderilerim' ? handleDeletePost : null}
                   />
