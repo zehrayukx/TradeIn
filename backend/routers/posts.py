@@ -35,7 +35,7 @@ load_dotenv(dotenv_path=env_adresi, override=True)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-groq_client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 
 # Yapılandırma
