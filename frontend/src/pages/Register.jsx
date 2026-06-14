@@ -58,9 +58,9 @@ const Register = () => {
   return (
     <div className="min-h-screen bg-[#0a0f1d] text-white flex flex-col">
       <header className="p-6 flex justify-between items-center max-w-[1440px] w-full mx-auto">
-        <div className="flex items-center gap-2 text-2xl font-black italic tracking-tighter">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-sm not-italic">TI</div>
-          TRADEIN
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-lg flex items-center justify-center text-sm font-black text-white shadow-lg shadow-blue-500/30">TI</div>
+          <span className="text-2xl font-black tracking-tighter bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">TradeIn</span>
         </div>
         <div className="text-sm text-slate-400">
           Zaten hesabın var mı? <Link to="/login" className="text-blue-500 font-bold hover:underline ml-1">Giriş Yap</Link>
