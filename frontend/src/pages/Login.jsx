@@ -66,11 +66,10 @@ const Login = ({ setIsLoggedIn }) => {
     try {
       /* Backend'ci için: POST /sifre-sifirla/email-gonder  Body: { email } */
       await axios.post("http://127.0.0.1:8000/sifre-sifirla/email-gonder", { email: resetEmail });
-    } catch {
-      /* Backend henüz bağlı değil — tasarım testi için devam ediliyor.
-         Backend hazır olunca bu catch bloğunu şu şekilde değiştir:
-         catch (err) { setResetError(err.response?.data?.detail || "Hata"); return; } */
-    } finally {
+    }  catch (err) {
+  setResetError(err.response?.data?.detail || "Bir hata oluştu.");
+  return; // Hata varsa kodu durdur, bir sonraki adıma GEÇME!
+} finally {
       setResetLoading(false);
       setStep("code"); // backend hazır olsa da olmasa da ilerle
     }

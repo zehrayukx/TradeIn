@@ -81,3 +81,50 @@ def send_social_notification_email(to_email: str, actor_name: str, notification_
             server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
         print(f"✅ [SMTP SOSYAL]: {notification_type} maili {to_email} adresine gitti!")
     except Exception as e: print(f"❌ [SMTP SOSYAL HATA]: {e}")
+
+
+
+def send_reset_code_email(to_email: str, code: str):
+    SENDER_EMAIL = os.getenv("EMAIL_ADDRESS")
+    APP_PASSWORD = os.getenv("EMAIL_PASSWORD")
+    
+    if not SENDER_EMAIL or not APP_PASSWORD:
+        print("❌ HATA: .env dosyasında EMAIL_ADDRESS veya EMAIL_PASSWORD bulunamadı!")
+        return
+
+    subject = "TradeIn - Şifre Sıfırlama Kodunuz"
+
+    # Senin tasarım diline uygun, premium görünümlü HTML şifre sıfırlama şablonu
+    html_content = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px;">
+            <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; padding: 24px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center;">
+                <h2 style="color: #2563eb;">TradeIn</h2>
+                <hr style="border: 0; border-top: 1px solid #f1f5f9; margin-bottom: 20px;">
+                <p style="color: #334155; font-size: 16px; text-align: left;">Merhaba,</p>
+                <p style="color: #334155; font-size: 15px; text-align: left;">Hesabınızın şifresini sıfırlamak için doğrulama kodunuz aşağıdadır:</p>
+                
+                <div style="background-color: #eff6ff; border: 1px dashed #3b82f6; padding: 15px; border-radius: 8px; margin: 25px 0; font-size: 28px; font-weight: 900; letter-spacing: 8px; color: #1d4ed8;">
+                    {code}
+                </div>
+                
+                <p style="color: #64748b; font-size: 13px; text-align: left;">Bu kod <b>10 dakika</b> boyunca geçerlidir. Eğer bu şifre sıfırlama talebini siz yapmadıysanız lütfen bu e-postayı görmezden gelin.</p>
+            </div>
+        </body>
+    </html>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = to_email
+    msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(SENDER_EMAIL, APP_PASSWORD)
+            server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+        print(f"✅ [SMTP SIFRE SIFIRLAMA]: Kod {to_email} adresine gönderildi!")
+    except Exception as e: 
+        print(f"❌ [SMTP SIFRE HATA]: {e}")
