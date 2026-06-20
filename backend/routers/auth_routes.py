@@ -59,9 +59,6 @@ from passlib.context import CryptContext
 import database
 import models
 
-# Eğer bu dosyada zaten bir router tanımlıysa (örn: router = APIRouter()), 
-# aşağıdaki router_reset tanımını kullanıp en altta main.py'ye ekleyebilirsin.
-# Ya da mevcut router'ın üzerinden devam edebilirsin (örnekte mevcut router adının 'router' olduğunu varsayıyorum)
 
 # Şifre hashleme altyapısı
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

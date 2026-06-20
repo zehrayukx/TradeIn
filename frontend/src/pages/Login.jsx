@@ -58,20 +58,20 @@ const Login = ({ setIsLoggedIn }) => {
     } finally { setIsLoading(false); }
   };
 
-  /* ── ADIM 1: E-posta gönder ── */
+/* ── ADIM 1: E-posta gönder ── */
   const handleSendEmail = async (e) => {
     e.preventDefault();
     if (!resetEmail.trim()) { setResetError("E-posta adresi gerekli"); return; }
     setResetLoading(true); setResetError(null);
     try {
-      /* Backend'ci için: POST /sifre-sifirla/email-gonder  Body: { email } */
       await axios.post("http://127.0.0.1:8000/sifre-sifirla/email-gonder", { email: resetEmail });
-    }  catch (err) {
-  setResetError(err.response?.data?.detail || "Bir hata oluştu.");
-  return; // Hata varsa kodu durdur, bir sonraki adıma GEÇME!
-} finally {
+      
+      // 🚀 Sadece API başarılı olursa bir sonraki adıma geç
+      setStep("code"); 
+    } catch (err) {
+      setResetError(err.response?.data?.detail || "E-posta gönderilirken bir hata oluştu.");
+    } finally {
       setResetLoading(false);
-      setStep("code"); // backend hazır olsa da olmasa da ilerle
     }
   };
 
@@ -81,17 +81,16 @@ const Login = ({ setIsLoggedIn }) => {
     if (resetCode.trim().length < 4) { setResetError("Geçerli bir kod gir"); return; }
     setResetLoading(true); setResetError(null);
     try {
-      /* Backend'ci için: POST /sifre-sifirla/kodu-dogrula  Body: { email, code } */
       await axios.post("http://127.0.0.1:8000/sifre-sifirla/kodu-dogrula", {
         email: resetEmail, code: resetCode,
       });
-    } catch {
-      /* Backend henüz bağlı değil — tasarım testi için devam ediliyor.
-         Backend hazır olunca:
-         catch (err) { setResetError(err.response?.data?.detail || "Kod hatalı"); return; } */
+      
+      // 🚀 Sadece kod DOĞRUYSA yeni şifre ekranına geç
+      setStep("reset");
+    } catch (err) {
+      setResetError(err.response?.data?.detail || "Kod hatalı veya süresi dolmuş.");
     } finally {
       setResetLoading(false);
-      setStep("reset");
     }
   };
 
@@ -102,16 +101,11 @@ const Login = ({ setIsLoggedIn }) => {
     if (newPassword !== newPasswordConfirm) { setResetError("Şifreler eşleşmiyor"); return; }
     setResetLoading(true); setResetError(null);
     try {
-      /* Backend'ci için: POST /sifre-sifirla/yeni-sifre  Body: { email, code, new_password } */
       await axios.post("http://127.0.0.1:8000/sifre-sifirla/yeni-sifre", {
         email: resetEmail, code: resetCode, new_password: newPassword,
       });
-    } catch {
-      /* Backend henüz bağlı değil — tasarım testi için devam ediliyor.
-         Backend hazır olunca:
-         catch (err) { setResetError(err.response?.data?.detail || "Hata"); return; } */
-    } finally {
-      setResetLoading(false);
+      
+      // 🚀 Sadece şifre başarıyla güncellenirse başarı mesajını göster
       setResetSuccess(true);
       setTimeout(() => {
         setStep("login");
@@ -119,6 +113,10 @@ const Login = ({ setIsLoggedIn }) => {
         setNewPassword(""); setNewPasswordConfirm("");
         setResetSuccess(false); setResetError(null);
       }, 2000);
+    } catch (err) {
+      setResetError(err.response?.data?.detail || "Şifre güncellenemedi. İşlemi baştan başlatın.");
+    } finally {
+      setResetLoading(false);
     }
   };
 
