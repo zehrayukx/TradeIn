@@ -57,6 +57,10 @@ print("="*50 + "\n")
 
 router = APIRouter(tags=["Gönderiler ve Sosyal Ağ"])
 
+class SifreSifirlaSchema(BaseModel):
+    email: str
+    yeni_sifre: str
+
 # --- PYDANTIC ŞEMALARI ---
 class PostCreate(BaseModel):
     content: str
@@ -411,3 +415,11 @@ def yorum_sil(yorum_id: int, db: Session = Depends(database.get_db), current_use
     db.delete(yorum)
     db.commit()
     return {"mesaj": "Yorum başarıyla silindi"}
+
+@router.post("/sifre-sifirla")
+def sifre_sifirla(data: SifreSifirlaSchema, db: Session = Depends(database.get_db)):
+    db_user = db.query(models.User).filter(models.User.email == data.email).first()
+    if not db_user: raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    db_user.password = get_password_hash(data.yeni_sifre)
+    db.commit()
+    return {"message": "Şifre başarıyla güncellendi ve hashlendi!"}
