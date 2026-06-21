@@ -166,7 +166,11 @@ const AssetDetailModal = ({ asset, currentPrice, onClose }) => {
                         </div>
                       )}
                       
-                      <div className="absolute bottom-full mb-8 left-1/2 -translate-x-1/2 bg-[#1e293b] text-slate-200 p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none shadow-2xl border border-slate-600 w-44 z-50 transform group-hover:-translate-y-2 hidden group-hover:block">
+                      {/* 🔥 İŞTE O UFAK KUTU: Artık fitilin hep %5 üstünde açılır, tavana asla çarpmaz ve taşmaz! */}
+                      <div 
+                        style={{ bottom: `${Math.min(highPct + 5, 80)}%` }}
+                        className="absolute left-1/2 -translate-x-1/2 bg-[#1e293b] text-slate-200 p-3 rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none shadow-2xl border border-slate-600 w-36 z-50"
+                      >
                         <div className="text-xs font-bold text-slate-400 mb-2 border-b border-slate-700 pb-1">
                           Saat: {data.hour}
                         </div>

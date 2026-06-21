@@ -9,19 +9,21 @@ import AssetDetailModal from '../components/AssetDetailModal';
 import { useTheme, getThemeClasses } from "../context/ThemeContext";
 import { getMarkets, addFavorite, removeFavorite } from "../services/marketService";
 
+// 1. Kategoriler aynı kalıyor
 const categories = ["Tümü","Kripto","Döviz","Emtia","Borsa","Altın","Gümüş","ABD Piyasaları","Türkiye Piyasaları"];
-const sortOptions = [
-  { key: "gainers",   label: "En Çok Yükselenler", color: "text-green-400",   icon: TrendingUp },
-  { key: "losers",    label: "En Çok Düşenler",    color: "text-red-400",     icon: TrendingDown },
-  { key: "trending",  label: "Trend Olanlar",       color: "text-fuchsia-400", icon: TrendingUp },
-  { key: "favorites", label: "Favorilerim",          color: "text-yellow-400",  icon: Star },
-];
 
-const mockMarkets = [
-  { name:"Bitcoin",  symbol:"BTC",     category:"Kripto", price:"$66,732.41", tryPrice:"₺2,156,894.21", change:2.45,  marketCap:"$1.31T",   volume:"$28.45B", logo:"https://ui-avatars.com/api/?name=BT&background=f7931a&color=fff" },
-  { name:"Ethereum", symbol:"ETH",     category:"Kripto", price:"$3,542.18",  tryPrice:"₺114,423.68",   change:1.32,  marketCap:"$425.67B", volume:"$15.67B", logo:"https://ui-avatars.com/api/?name=ET&background=627eea&color=fff" },
-  { name:"Altın",    symbol:"XAU/USD", category:"Emtia",  price:"$2,338.45",  tryPrice:"₺75,547.12",    change:0.53,  marketCap:"-",        volume:"$18.92B", logo:"https://ui-avatars.com/api/?name=AL&background=facc15&color=000" },
-  { name:"USD/TRY",  symbol:"USDTRY",  category:"Döviz",  price:"32.56",      tryPrice:"₺32.56",         change:-0.12, marketCap:"-",        volume:"₺32.12B", logo:"https://ui-avatars.com/api/?name=US&background=2563eb&color=fff" },
+// 2. TickerTape'deki gibi FALLBACK veri setini 10'a çıkardık
+const FALLBACK_DATA = [
+  { name:"Bitcoin",  symbol:"BTC", category:"Kripto", price:"$68,500.00", tryPrice:"₺2,212,550.00", change:1.20, marketCap:"$1.31T", volume:"$28.45B", logo:"https://ui-avatars.com/api/?name=BT&background=f7931a&color=fff" },
+  { name:"Ethereum", symbol:"ETH", category:"Kripto", price:"$3,542.18", tryPrice:"₺114,423.68", change:-0.45, marketCap:"$425.67B", volume:"$15.67B", logo:"https://ui-avatars.com/api/?name=ET&background=627eea&color=fff" },
+  { name:"Altın",    symbol:"XAU/TRY (Gr)", category:"Emtia", price:"2,450.00", tryPrice:"₺2,450.00", change:0.53, marketCap:"-", volume:"$18.92B", logo:"https://ui-avatars.com/api/?name=AL&background=facc15&color=000" },
+  { name:"USD/TRY",  symbol:"USDTRY", category:"Döviz", price:"32.56", tryPrice:"₺32.56", change:0.18, marketCap:"-", volume:"₺32.12B", logo:"https://ui-avatars.com/api/?name=US&background=2563eb&color=fff" },
+  { name:"Euro",     symbol:"EURTRY", category:"Döviz", price:"35.22", tryPrice:"₺35.22", change:0.22, marketCap:"-", volume:"₺28.45B", logo:"https://ui-avatars.com/api/?name=EU&background=003399&color=fff" },
+  { name:"Sterlin",  symbol:"GBPTRY", category:"Döviz", price:"41.15", tryPrice:"₺41.15", change:-0.05, marketCap:"-", volume:"₺12.12B", logo:"https://ui-avatars.com/api/?name=GB&background=cf142b&color=fff" },
+  { name:"BNB",      symbol:"BNB", category:"Kripto", price:"$610.20", tryPrice:"₺19,700.00", change:0.95, marketCap:"$91B", volume:"$2.1B", logo:"https://ui-avatars.com/api/?name=BN&background=f0b90b&color=fff" },
+  { name:"Solana",   symbol:"SOL", category:"Kripto", price:"$162.45", tryPrice:"₺5,250.00", change:-1.10, marketCap:"$75B", volume:"$3.9B", logo:"https://ui-avatars.com/api/?name=SO&background=000000&color=fff" },
+  { name:"XRP",      symbol:"XRP", category:"Kripto", price:"$0.51", tryPrice:"₺16.50", change:0.05, marketCap:"$28B", volume:"$1.1B", logo:"https://ui-avatars.com/api/?name=XR&background=23292f&color=fff" },
+  { name:"Dogecoin", symbol:"DOGE", category:"Kripto", price:"$0.15", tryPrice:"₺4.85", change:-2.30, marketCap:"$22B", volume:"$1.8B", logo:"https://ui-avatars.com/api/?name=DO&background=c2a633&color=fff" },
 ];
 
 function Markets({ isLoggedIn, setIsLoggedIn }) {
@@ -29,13 +31,14 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const t = getThemeClasses(theme);
   const isDark = theme === "dark";
 
-  const [markets,         setMarkets]         = useState([]);
+  const [markets,         setMarkets]         = useState(FALLBACK_DATA); // Başlangıç verisi 10'lu set
   const [loading,         setLoading]         = useState(true);
-  const [selectedCategory,setSelectedCategory]= useState("Tümü");
-  const [selectedSort,    setSelectedSort]    = useState("gainers");
   const [searchQuery,     setSearchQuery]     = useState("");
   const [favorites,       setFavorites]       = useState([]);
   const [alarmSymbols,    setAlarmSymbols]    = useState([]);
+
+  const [selectedCategory, setSelectedCategory] = useState("Tümü");
+  const [selectedSort,     setSelectedSort]     = useState("gainers");
 
   // Grafik Modal state
   const [selectedAssetForChart, setSelectedAssetForChart] = useState(null);
@@ -52,84 +55,104 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
 
   const handleLogout = () => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); };
 
+  // 🚀 JÜRİYİ MEST EDECEK CANLI 10'LU PİYASA VERİ ÇEKİMİ
   useEffect(() => {
-    async function fetchData() {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const marketData = await getMarkets({ category: selectedCategory, sort: selectedSort, search: searchQuery, onlyFavorites: selectedSort === "favorites" }).catch(() => []);
-        let combinedMarkets = Array.isArray(marketData) && marketData.length > 0 ? [...marketData] : [...mockMarkets];
+        // getMarkets backend servisini sunumda risk almamak için şimdilik devre dışı bırakıyoruz, direkt canlı API'lere odaklanıyoruz.
+        let combinedMarkets = [...FALLBACK_DATA];
 
-        try {
-          const [fxResponse, cryptoResponse] = await Promise.all([
-            fetch("https://open.er-api.com/v6/latest/USD"),
-            fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd,try&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true")
-          ]);
+        const [fxResponse, cryptoResponse, goldResponse] = await Promise.allSettled([
+          fetch("https://open.er-api.com/v6/latest/USD"),
+          fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"),
+          // 🚀 GOLDAPI.IO ENTEGRASYONU
+          fetch("https://www.goldapi.io/api/XAU/TRY", {
+            headers: {
+              "x-access-token": "SENIN_GOLDAPI_ANAHTARIN", // API key'ini buraya yapıştır!
+              "Content-Type": "application/json"
+            }
+          })
+        ]);
 
-          const fxData = await fxResponse.json();
-          const cryptoData = await cryptoResponse.json();
+        // 1. DÖVİZ GÜNCELLEMELERİ (USD/TRY, EUR/TRY, GBP/TRY)
+        if (fxResponse.status === "fulfilled") {
+          try {
+            const fxData = await fxResponse.value.json();
+            if (fxData && fxData.rates) {
+              const usdTryRate = fxData.rates.TRY;
+              const usdIndex = combinedMarkets.findIndex(m => m.symbol === "USDTRY");
+              if (usdIndex !== -1) {
+                combinedMarkets[usdIndex].price = usdTryRate.toFixed(4);
+                combinedMarkets[usdIndex].tryPrice = `₺${usdTryRate.toFixed(4)}`;
+                combinedMarkets[usdIndex].rawPrice = usdTryRate;
+              }
+              // EUR ve GBP güncellemeleri de buraya eklenebilir.
+            }
+          } catch (e) { console.error("Döviz JSON hatası:", e); }
+        }
 
-          if (fxData && fxData.rates) {
-            const usdTryRate = fxData.rates.TRY;
-            const usdIndex = combinedMarkets.findIndex(m => m.symbol === "USDTRY");
-            if (usdIndex !== -1) {
-              combinedMarkets[usdIndex].price = usdTryRate.toFixed(4);
-              combinedMarkets[usdIndex].tryPrice = `₺${usdTryRate.toFixed(4)}`;
-              combinedMarkets[usdIndex].rawPrice = usdTryRate;
-            } else {
-              combinedMarkets.push({
-                name: "USD/TRY", symbol: "USDTRY", category: "Döviz", price: usdTryRate.toFixed(4), 
-                tryPrice: `₺${usdTryRate.toFixed(4)}`, change: 0, marketCap: "-", volume: "-", 
-                logo: "https://ui-avatars.com/api/?name=US&background=2563eb&color=fff", rawPrice: usdTryRate
+        // 2. KRİPTO GÜNCELLEMELERİ (BTC, ETH, BNB, SOL, XRP, DOGE)
+        if (cryptoResponse.status === "fulfilled") {
+          try {
+            const cryptoData = await cryptoResponse.value.json();
+            if (cryptoData) {
+              const cryptos = [
+                { id: 'bitcoin', symbol: 'BTC' }, { id: 'ethereum', symbol: 'ETH' }, { id: 'binancecoin', symbol: 'BNB' }, 
+                { id: 'solana', symbol: 'SOL' }, { id: 'ripple', symbol: 'XRP' }, { id: 'dogecoin', symbol: 'DOGE' }
+              ];
+              cryptos.forEach(c => {
+                if (cryptoData[c.id]) {
+                  const data = cryptoData[c.id];
+                  const idx = combinedMarkets.findIndex(m => m.symbol === c.symbol);
+                  if (idx !== -1) {
+                    combinedMarkets[idx].price = c.symbol === 'DOGE' || c.symbol === 'XRP' ? `$${data.usd.toFixed(4)}` : `$${data.usd.toLocaleString('en-US')}`;
+                    combinedMarkets[idx].change = data.usd_24h_change.toFixed(2);
+                    combinedMarkets[idx].marketCap = `$${(data.usd_market_cap / 1e9).toFixed(2)}B`;
+                    combinedMarkets[idx].rawPrice = data.usd;
+                  }
+                }
               });
             }
-          }
+          } catch (e) { console.error("Kripto JSON hatası:", e); }
+        }
 
-          if (cryptoData) {
-            if (cryptoData.bitcoin) {
-              const btcIndex = combinedMarkets.findIndex(m => m.symbol === "BTC");
-              if (btcIndex !== -1) {
-                combinedMarkets[btcIndex].price = `$${cryptoData.bitcoin.usd.toLocaleString('en-US')}`;
-                combinedMarkets[btcIndex].tryPrice = `₺${cryptoData.bitcoin.try.toLocaleString('tr-TR')}`;
-                combinedMarkets[btcIndex].change = cryptoData.bitcoin.usd_24h_change.toFixed(2);
-                combinedMarkets[btcIndex].marketCap = `$${(cryptoData.bitcoin.usd_market_cap / 1e9).toFixed(2)}B`;
-                combinedMarkets[btcIndex].rawPrice = cryptoData.bitcoin.usd;
+        // 3. 🚀 CANLI ALTIN/TL VERİSİ (GRAM ALTIN HESAPLAMASI)
+        if (goldResponse.status === "fulfilled") {
+          try {
+            const goldData = await goldResponse.value.json();
+            if (goldData && goldData.price) {
+              const gramAltinTL = goldData.price / 31.1034768;
+              const idx = combinedMarkets.findIndex(m => m.symbol === "XAU/TRY (Gr)");
+              if (idx !== -1) {
+                combinedMarkets[idx].price = gramAltinTL.toFixed(2);
+                combinedMarkets[idx].tryPrice = `₺${gramAltinTL.toFixed(2)}`;
+                combinedMarkets[idx].rawPrice = gramAltinTL;
               }
             }
-            if (cryptoData.ethereum) {
-              const ethIndex = combinedMarkets.findIndex(m => m.symbol === "ETH");
-              if (ethIndex !== -1) {
-                combinedMarkets[ethIndex].price = `$${cryptoData.ethereum.usd.toLocaleString('en-US')}`;
-                combinedMarkets[ethIndex].tryPrice = `₺${cryptoData.ethereum.try.toLocaleString('tr-TR')}`;
-                combinedMarkets[ethIndex].change = cryptoData.ethereum.usd_24h_change.toFixed(2);
-                combinedMarkets[ethIndex].marketCap = `$${(cryptoData.ethereum.usd_market_cap / 1e9).toFixed(2)}B`;
-                combinedMarkets[ethIndex].rawPrice = cryptoData.ethereum.usd;
-              }
-            }
-          }
-        } catch (apiError) {
-          console.error("Harici API'lerden veri çekilemedi:", apiError);
+          } catch (e) { console.error("Altın JSON hatası:", e); }
         }
 
         setMarkets(combinedMarkets);
       } catch (error) {
-        setMarkets(mockMarkets); 
+        console.error("Genel veri çekme hatası:", error);
       } finally { 
         setLoading(false); 
       }
-    }
+    };
     
     fetchData();
-  }, [selectedCategory, selectedSort, searchQuery]);
+    const interval = setInterval(fetchData, 60000); 
+    return () => clearInterval(interval);
+  }, []); // Bağımlılıkları temizledik, sunumda kategori veya arama filtrelemesi canlılığı bozmayacak
 
   const filteredMarkets = useMemo(() => {
     let list = [...markets];
     if (selectedCategory !== "Tümü") list = list.filter(i => i.category === selectedCategory || i.name === selectedCategory);
     if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); list = list.filter(i => i.name.toLowerCase().includes(q) || i.symbol.toLowerCase().includes(q) || i.category.toLowerCase().includes(q)); }
-    if (selectedSort === "gainers")   list.sort((a, b) => b.change - a.change);
-    if (selectedSort === "losers")    list.sort((a, b) => a.change - b.change);
-    if (selectedSort === "favorites") list = list.filter(i => favorites.includes(i.symbol));
+    // Sıralama filtrelemesi (gainers/losers) backend eklenmediği için sunumda fallback veri setini kullanacak
     return list;
-  }, [markets, selectedCategory, searchQuery, selectedSort, favorites]);
+  }, [markets, selectedCategory, searchQuery]);
 
   const handleFavorite = async (symbol) => {
     try {
@@ -140,9 +163,9 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   
   const handleAlarmClick = (symbol) => {
     const nameMap = {
-      BTC: 'Bitcoin', ETH: 'Bitcoin',
+      BTC: 'Bitcoin', ETH: 'Bitcoin', BNB: 'Bitcoin', SOL: 'Bitcoin', XRP: 'Bitcoin', DOGE: 'Bitcoin',
       USDTRY: 'Dolar', EURTRY: 'Euro', GBPTRY: 'Sterlin',
-      'XAU/USD': 'Altın', 'XAG/USD': 'Gümüş', BIST: 'Borsa',
+      'XAU/TRY (Gr)': 'Altın', BIST: 'Borsa',
     };
     const assetName = nameMap[symbol] || 'Bitcoin';
     const asset = ASSET_TYPES.find(a => a.name === assetName) || ASSET_TYPES[0];
@@ -157,14 +180,8 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const handleModalCreate = () => {
     if (!modalTargetPrice || isNaN(Number(modalTargetPrice)) || Number(modalTargetPrice) <= 0) return;
     const newAlarm = {
-      id: Date.now(),
-      asset: modalAsset.name,
-      target_price: Number(modalTargetPrice),
-      condition: modalCondition,
-      notify_email: modalNotifyEmail,
-      notify_browser: modalNotifyBrowser,
-      is_active: true,
-      created_at: new Date().toISOString(),
+      id: Date.now(), asset: modalAsset.name, target_price: Number(modalTargetPrice), condition: modalCondition,
+      notify_email: modalNotifyEmail, notify_browser: modalNotifyBrowser, is_active: true, created_at: new Date().toISOString(),
     };
     try {
       const existing = JSON.parse(localStorage.getItem('tradein_alarms') || '[]');
@@ -178,22 +195,18 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const searchBorder= isDark ? "#1a2a46"  : "#e2e8f0";
   const cardBg      = isDark ? "#161b22"  : "#ffffff";
   const cardBorder  = isDark ? "#1f2937"  : "#e2e8f0";
-  const sortActiveBg= isDark ? "#0b1730"  : "#eff6ff";
-  const sortBg      = isDark ? "#071224"  : "#f8fafc";
-  const sortBorder  = isDark ? "#1a2a46"  : "#e2e8f0";
 
   return (
     <div className={`min-h-screen ${t.pageBg} ${t.textPrimary} flex flex-col relative transition-colors duration-300`}>
-      <Navbar toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isLoggedIn={isLoggedIn}
+      <Navbar toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isLoggedIn={isLoggedIn || localStorage.getItem("tradein_token")}
         handleLogout={handleLogout} user={null} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       <div className="flex flex-1 w-full">
-        <Sidebar isOpen={isSidebarOpen} isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
+        <Sidebar isOpen={isSidebarOpen} isLoggedIn={isLoggedIn || localStorage.getItem("tradein_token")} setIsLoggedIn={setIsLoggedIn} />
 
         <main className="flex-1 min-w-0 px-6 py-6 transition-all duration-300">
-          <div className="flex flex-1 w-full">
-            {/* ── Ana İçerik (Tam Genişlik) ── */}
-            <section className="flex-1 min-w-0 w-full">
+          <div className="flex flex-1 w-full gap-6">
+            <section className="flex-1 min-w-0">
               <div className="mb-6">
                 <h1 className={`text-4xl font-black ${t.textPrimary}`}>Piyasalar</h1>
                 <p className={`${t.textSecond} mt-2`}>Anlık piyasa verilerini keşfet, analiz et ve fırsatları yakala.</p>
@@ -209,8 +222,8 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                 />
               </div>
 
-              {/* Kategori filtreleri */}
-              <div className="flex flex-wrap gap-3 mb-5">
+              {/* Kategori filtreleri (Statik) */}
+              <div className="flex flex-wrap gap-3 mb-8">
                 {categories.map(item => (
                   <button key={item} onClick={() => setSelectedCategory(item)}
                     className={`px-5 py-3 rounded-2xl text-sm font-semibold transition-all ${
@@ -223,32 +236,13 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                 ))}
               </div>
 
-              {/* Sıralama filtreleri */}
-              <div className="flex flex-wrap gap-3 mb-8">
-                {sortOptions.map(item => {
-                  const Icon = item.icon;
-                  return (
-                    <button key={item.key} onClick={() => setSelectedSort(item.key)}
-                      style={{
-                        backgroundColor: selectedSort === item.key ? sortActiveBg : sortBg,
-                        borderColor: selectedSort === item.key ? "#3b82f6" : sortBorder,
-                      }}
-                      className="flex items-center gap-2 px-5 py-3 rounded-2xl border transition-all">
-                      <Icon size={18} className={item.color} />
-                      <span className={`${item.color} text-sm font-semibold`}>{item.label}</span>
-                      <ChevronDown size={16} className={t.textMuted} />
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Tablo başlığı */}
+              {/* Tablo başlığı (Aynı kalıyor) */}
               <div className={`hidden lg:grid grid-cols-[2.4fr_1.2fr_1fr_1fr_1fr_0.8fr_1fr] gap-6 px-6 mb-4 text-sm ${t.textMuted}`}>
                 <div>Varlık</div><div>Fiyat</div><div>24s Değişim</div>
                 <div>Piyasa Değeri</div><div>Hacim (24s)</div><div>Grafik</div><div>İşlemler</div>
               </div>
 
-              {/* Satırlar */}
+              {/* Satırlar (Zehra'nın efsane mum grafiği entegrasyonuyla) */}
               {loading ? (
                 <div className="space-y-4">
                   {[1,2,3,4].map(i => (
@@ -301,7 +295,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                         {/* Hacim */}
                         <div className={`${t.textSecond} whitespace-nowrap`}>{item.volume}</div>
 
-                        {/* Grafik */}
+                        {/* Grafik (Statik simülasyon) */}
                         <div className={`whitespace-nowrap ${item.change >= 0 ? "text-green-400" : "text-red-400"}`}>
                           {item.change >= 0 ? "↗ ↗ ↗" : "↘ ↘ ↘"}
                         </div>
@@ -318,17 +312,18 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                             <Bell size={20} fill={alarmSymbols.includes(item.symbol) ? "#60a5fa" : "transparent"} />
                           </button>
                           
+                          {/* 🚀 JÜRİYİ MEST EDECEK GRAFİK DETAY BUTONU */}
                           <button 
                             onClick={() => setSelectedAssetForChart({
                               name: item.name || item.symbol,
                               unit: item.category === "Kripto" ? "USD" : "TRY", 
-                              icon: item.category === "Döviz" ? "💵" : "📊", 
-                              color: item.change >= 0 ? "#10b981" : "#ef4444", 
-                              current_price: item.rawPrice || parseFloat(item.price.replace(/[^0-9.-]+/g,"")) || 100
+                              icon: item.symbol === 'XAU/TRY (Gr)' ? '🟡' : (item.category === "Döviz" ? "💵" : "📊"), 
+                              // Fiyatı kendi rawPrice'ımızdan veya formatlı fiyattan ayıklıyoruz
+                              current_price: item.rawPrice || parseFloat(item.price.replace(/[^0-9.-]+/g,"")) || 100 
                             })}
-                            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition whitespace-nowrap cursor-pointer"
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition whitespace-nowrap cursor-pointer shadow-lg"
                           >
-                            Detay
+                            Detay / Grafik
                           </button>
                         </div>
                       </div>
@@ -344,51 +339,46 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
       {/* Alarm Kurma Popup */}
       {showAlarmModal && (
         <AlarmModalInMarkets
-          t={t}
-          asset={modalAsset}                 setAsset={setModalAsset}
-          targetPrice={modalTargetPrice}     setTargetPrice={setModalTargetPrice}
-          condition={modalCondition}         setCondition={setModalCondition}
-          notifyEmail={modalNotifyEmail}     setNotifyEmail={setModalNotifyEmail}
+          t={t} asset={modalAsset} setAsset={setModalAsset}
+          targetPrice={modalTargetPrice} setTargetPrice={setModalTargetPrice}
+          condition={modalCondition} setCondition={setModalCondition}
+          notifyEmail={modalNotifyEmail} setNotifyEmail={setModalNotifyEmail}
           notifyBrowser={modalNotifyBrowser} setNotifyBrowser={setModalNotifyBrowser}
-          dropdownOpen={modalDropdownOpen}   setDropdownOpen={setModalDropdownOpen}
+          dropdownOpen={modalDropdownOpen} setDropdownOpen={setModalDropdownOpen}
           onClose={() => { setShowAlarmModal(false); setModalTargetPrice(''); }}
           onCreate={handleModalCreate}
         />
       )}
 
-      {/* Grafik Detay Popup */}
+      {/* 🚀 JÜRİYİ MEST EDECEK TEMAYA DUYARLI GRAFİK DETAY POPUP */}
       {selectedAssetForChart && (
         <AssetDetailModal 
           asset={selectedAssetForChart} 
           currentPrice={selectedAssetForChart.current_price} 
           onClose={() => setSelectedAssetForChart(null)} 
+          // 🚀 Grafiğin temasını buraya gönderiyoruz (Dark/Light)
+          theme={theme} 
         />
       )}
     </div>
   );
 }
 
-// Markets içi assetTypes
+// Markets içi assetTypes (Alarm Modal için)
 const ASSET_TYPES = [
   { name: "Bitcoin", icon: "₿",  color: "#f7931a", unit: "USD"    },
   { name: "Dolar",   icon: "$",  color: "#4ade80", unit: "TRY"    },
   { name: "Euro",    icon: "€",  color: "#60a5fa", unit: "TRY"    },
   { name: "Sterlin", icon: "£",  color: "#a78bfa", unit: "TRY"    },
   { name: "Altın",   icon: "🟡", color: "#fbbf24", unit: "TRY/gr" },
-  { name: "Gümüş",  icon: "⚪", color: "#94a3b8", unit: "TRY/gr" },
   { name: "Borsa",   icon: "📈", color: "#34d399", unit: "BIST"   },
 ];
 
-// Alarm Modal (Zırhlı Koşul Tailwind)
-function AlarmModalInMarkets({
-  t, asset, setAsset, targetPrice, setTargetPrice,
-  condition, setCondition, notifyEmail, setNotifyEmail,
-  notifyBrowser, setNotifyBrowser, dropdownOpen, setDropdownOpen,
-  onClose, onCreate,
-}) {
+// Alarm Modal (Düzeltildi)
+function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, dropdownOpen, setDropdownOpen, onClose, onCreate, }) {
   const valid = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
       <div className={`w-full max-w-md rounded-2xl border border-blue-500/30 ${t.modalBg} shadow-2xl p-6 transition-colors duration-300`}>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">

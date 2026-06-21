@@ -16,7 +16,7 @@ const assetTypes = [
   { name: "Euro",    icon: "€", color: "#60a5fa", unit: "TRY" },
   { name: "Sterlin", icon: "£", color: "#a78bfa", unit: "TRY" },
   { name: "Altın",   icon: "🟡", color: "#fbbf24", unit: "TRY/gr" },
-  { name: "Gümüş",  icon: "⚪", color: "#94a3b8", unit: "TRY/gr" },
+
   { name: "Borsa",   icon: "📈", color: "#34d399", unit: "BIST" },
 ];
 
@@ -73,17 +73,24 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
 
   // 2. COINGECKO'DAN GERÇEK VERİLERİ ÇEK
   // 2. GERÇEK ZAMANLI PİYASA VERİLERİNİ ÇEK (Kripto ve Döviz)
-  useEffect(() => {
+useEffect(() => {
     const fetchLivePrices = async () => {
       try {
-        // Tıpkı Markets sayfasındaki gibi Promise.all ile paralel istek atıyoruz
-        const [fxResponse, cryptoResponse] = await Promise.all([
+        const [fxResponse, cryptoResponse, goldResponse] = await Promise.all([
           fetch("https://open.er-api.com/v6/latest/USD"),
-          fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+          fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"),
+          // 🚀 GOLDAPI.IO ENTEGRASYONU
+          fetch("https://www.goldapi.io/api/XAU/TRY", {
+            headers: {
+              "x-access-token": "goldapi-20e7b14c71868c1919866bf5c7d57e7c-io", // Burayı güncellemeyi unutma!
+              "Content-Type": "application/json"
+            }
+          }).catch(() => null) // Altın API'si hata verirse diğerlerini bozmaması için
         ]);
 
         const fxData = await fxResponse.json();
         const cryptoData = await cryptoResponse.json();
+        const goldData = goldResponse ? await goldResponse.json() : null;
 
         setPrices(prev => {
           const newPrices = { ...prev };
@@ -99,25 +106,25 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
             const eurRate = fxData.rates.EUR;
             const gbpRate = fxData.rates.GBP;
 
-            // Çapraz kurları ER-API'nin USD tabanına göre hesaplıyoruz
             newPrices.Dolar = tryRate;
             newPrices.Euro = tryRate / eurRate;
             newPrices.Sterlin = tryRate / gbpRate;
           }
 
+          // 🚀 Altın Güncellemesi (Gram Altın)
+          if (goldData && goldData.price) {
+            newPrices.Altın = goldData.price / 31.1034768;
+          }
+
           return newPrices;
         });
       } catch (error) {
-        console.error("Canlı fiyatlar çekilemedi, sistem eski verilerle/fallback ile devam ediyor:", error);
+        console.error("Canlı fiyatlar çekilemedi:", error);
       }
     };
 
-    // İlk açılışta verileri çek
     fetchLivePrices();
-    
-    // Her 60 saniyede bir verileri güncelle (Rate limit'e takılmamak için ideal süre)
     const priceInterval = setInterval(fetchLivePrices, 60000);
-    
     return () => clearInterval(priceInterval);
   }, []); // Boş dizi sayesinde React render döngülerinden etkilenmez!
   // 3. EKRANIN CANLI KALMASI İÇİN MİKRO DALGALANMA SİMÜLASYONU
