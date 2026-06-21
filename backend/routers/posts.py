@@ -381,33 +381,49 @@ def arama_yap(q: str, db: Session = Depends(database.get_db)):
     if not q or len(q.strip()) == 0: return []
     kullanicilar = db.query(models.User).filter(models.User.username.ilike(f"%{q}%")).limit(5).all()
     return [{"name": u.username.upper(), "username": u.username.lower(), "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff"} for u in kullanicilar]
-
 @router.post("/takip-et/{takip_edilecek_id}")
-def takip_et(takip_edilecek_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.id == takip_edilecek_id: return {"hata": "Kendini takip edemezsin"}
-    existing_follow = db.query(models.Follow).filter(models.Follow.follower_id == current_user.id, models.Follow.followed_id == takip_edilecek_id).first()
+def takip_et(
+    takip_edilecek_id: int, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.id == takip_edilecek_id: 
+        return {"hata": "Kendini takip edemezsin"}
+        
+    existing_follow = db.query(models.Follow).filter(
+        models.Follow.follower_id == current_user.id, 
+        models.Follow.followed_id == takip_edilecek_id
+    ).first()
+    
     if existing_follow:
         db.delete(existing_follow)
         db.commit()
         return {"mesaj": "Takipten çıkıldı"}
+        
     new_follow = models.Follow(follower_id=current_user.id, followed_id=takip_edilecek_id)
     db.add(new_follow)
     db.commit()
+    
     # Takip satırı veritabanına eklendiğinde (new_follow commit edildikten hemen sonra):
     yeni_bildirim = models.Notification(
         user_id=takip_edilecek_id, # Takip edilen kişi (Hedef)
-        actor_id=current_user.id, # Takip butonuna basan (Aktör)
+        actor_id=current_user.id,  # Takip butonuna basan (Aktör)
         type="follow"
     )
     db.add(yeni_bildirim)
     db.commit()
+    
     hedef_kullanici = db.query(models.User).filter(models.User.id == takip_edilecek_id).first()
     if hedef_kullanici and hedef_kullanici.email:
-        send_social_notification_email(
+        # 🚀 İŞTE DÜZELTİLEN KISIM: E-posta direkt çağrılmıyor, arka plana görev olarak veriliyor
+        background_tasks.add_task(
+            send_social_notification_email,
             to_email=hedef_kullanici.email,
             actor_name=current_user.username,
             notification_type="follow"
         )
+        
     return {"mesaj": "Takip edildi."}
 
 @router.get("/akis")
