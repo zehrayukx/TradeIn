@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Home, BarChart2, Bell, Heart, Settings, LogIn, LogOut, Wallet, User } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios'; // 🚀 Axios eklendi
+import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-// 🚀 1. ADIM: Props'lardan notifBadge ve alarmNotifCount'u sildik, çünkü artık bunları içeride biz yöneteceğiz
 const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
 
-  // 🚀 2. ADIM: Sayıları tutacak lokal State'ler
-  const [notifBadge, setNotifBadge] = useState(0);
+  const [notifBadge, setNotifBadge]         = useState(0);
   const [alarmNotifCount, setAlarmNotifCount] = useState(0);
 
-  // 🚀 3. ADIM: Bildirimleri arkadan sessizce çeken asenkron ajan
   useEffect(() => {
     if (!isLoggedIn) {
       setNotifBadge(0);
@@ -25,57 +22,61 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
 
     const fetchBadges = async () => {
       try {
-        const token = localStorage.getItem("tradein_token");
+        const token = localStorage.getItem('tradein_token');
         if (!token) return;
 
-        // ⚠️ DİKKAT: Aşağıdaki URL'leri kendi backend uçlarına göre düzenleyebilirsin
-        // Sosyal bildirimleri çek ve sadece okunmayanları (is_read === false) say
-        const notifRes = await axios.get("http://127.0.0.1:8000/bildirimler", {
-          headers: { Authorization: `Bearer ${token}` }
+        const notifRes = await axios.get('http://127.0.0.1:8000/bildirimler', {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        const unreadNotifs = notifRes.data.filter(n => !n.is_read).length;
-        setNotifBadge(unreadNotifs);
+        setNotifBadge(notifRes.data.filter(n => !n.read).length);
 
-        // Alarmları çek ve sadece okunmayanları say
-        const alarmRes = await axios.get("http://127.0.0.1:8000/alarmlar/bildirimler", {
-          headers: { Authorization: `Bearer ${token}` }
+        const alarmRes = await axios.get('http://127.0.0.1:8000/alarmlar/bildirimler', {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        const unreadAlarms = alarmRes.data.filter(a => !a.is_read).length;
-        setAlarmNotifCount(unreadAlarms);
+        setAlarmNotifCount(alarmRes.data.filter(a => !a.is_read).length);
 
       } catch (error) {
-        console.error("Sidebar rozet sayıları çekilemedi:", error);
+        console.error('Sidebar rozet sayıları çekilemedi:', error);
       }
     };
 
-    // İlk açılışta ve sayfa her değiştiğinde kontrol et
     fetchBadges();
-
-    // 🎯 JÜRİ ŞOVU: Her 15 saniyede bir arkadan güncelleyerek "Canlı Bildirim" hissi verir
     const interval = setInterval(fetchBadges, 15000);
-    return () => clearInterval(interval);
 
-  }, [isLoggedIn, location.pathname]); 
+    const handleNotifUpdate = (e) => {
+      if (e.detail?.unreadCount !== undefined) {
+        setNotifBadge(e.detail.unreadCount);
+      } else {
+        fetchBadges();
+      }
+    };
+    window.addEventListener('tradein:notifications-updated', handleNotifUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('tradein:notifications-updated', handleNotifUpdate);
+    };
+  }, [isLoggedIn, location.pathname]);
 
   const navItems = [
-    { name: 'Anasayfa', icon: Home, path: '/' },
+    { name: 'Anasayfa', icon: Home,     path: '/' },
     { name: 'Piyasalar', icon: BarChart2, path: '/markets' },
-    { name: 'Ayarlar', icon: Settings, path: '/settings' },
+    { name: 'Ayarlar',  icon: Settings, path: '/settings' },
   ];
 
   const protectedItems = [
-    { name: 'Profilim', icon: User, path: '/profile', badge: 0 },
-    { name: 'Bildirimler', icon: Heart, path: '/notifications', badge: notifBadge }, // 🚀 Lokal state'e bağlandı
-    { name: 'Alarmlar', icon: Bell, path: '/alarms', badge: alarmNotifCount },       // 🚀 Lokal state'e bağlandı
-    { name: 'Portföyüm', icon: Wallet, path: '/portfolio', badge: 0 },
+    { name: 'Profilim',    icon: User,   path: '/profile',       badge: 0 },
+    { name: 'Bildirimler', icon: Heart,  path: '/notifications', badge: notifBadge },
+    { name: 'Alarmlar',    icon: Bell,   path: '/alarms',        badge: alarmNotifCount },
+    { name: 'Portföyüm',   icon: Wallet, path: '/portfolio',     badge: 0 },
   ];
 
   const isActive = (path) => location.pathname === path;
 
   const handleLogoutClick = () => {
-    localStorage.removeItem("tradein_token");
+    localStorage.removeItem('tradein_token');
     if (setIsLoggedIn) setIsLoggedIn(false);
-    navigate("/login");
+    navigate('/login');
   };
 
   return (
@@ -87,10 +88,7 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
               <Link
                 to={item.path}
                 className={`flex items-center gap-3 p-3 rounded-xl transition-all text-sm font-medium
-                  ${isActive(item.path)
-                    ? t.linkActive
-                    : `${t.linkInactive} ${t.linkHover}`
-                  }`}
+                  ${isActive(item.path) ? t.linkActive : `${t.linkInactive} ${t.linkHover}`}`}
               >
                 <item.icon size={20} />
                 <span>{item.name}</span>
@@ -102,10 +100,7 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
               <Link
                 to={item.path}
                 className={`flex items-center gap-3 p-3 rounded-xl transition-all text-sm font-medium
-                  ${isActive(item.path)
-                    ? t.linkActive
-                    : `${t.linkInactive} ${t.linkHover}`
-                  }`}
+                  ${isActive(item.path) ? t.linkActive : `${t.linkInactive} ${t.linkHover}`}`}
               >
                 <div className="relative">
                   <item.icon size={20} />
@@ -133,7 +128,7 @@ const Sidebar = ({ isOpen, isLoggedIn, setIsLoggedIn }) => {
           ) : (
             <Link
               to="/login"
-              className={`flex items-center gap-3 w-full p-3 text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all font-semibold text-sm`}
+              className="flex items-center gap-3 w-full p-3 text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all font-semibold text-sm"
             >
               <LogIn size={20} />
               <span>Giriş Yap</span>

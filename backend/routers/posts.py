@@ -8,6 +8,7 @@ from sqlalchemy import or_ # 🚀 En tepede or_ fonksiyonunu import etmeyi unutm
 import os
 import json
 from groq import Groq # 🚀 1. ADIM: Groq kütüphanesini import et
+from fastapi import BackgroundTasks
 
 # 🎯 AKILLI KATEGORİ SÖZLÜĞÜ (Keyword Mapping)
 # Kullanıcı soldaki anahtara bastığında, sağdaki dizideki tüm kelimeler aranır.
@@ -56,6 +57,10 @@ print(f"🔑 Yapay Zeka Durumu: {'AKTİF (Llama 3) ✅' if client else 'PASİF (
 print("="*50 + "\n")
 
 router = APIRouter(tags=["Gönderiler ve Sosyal Ağ"])
+
+class SifreSifirlaSchema(BaseModel):
+    email: str
+    yeni_sifre: str
 
 # --- PYDANTIC ŞEMALARI ---
 class PostCreate(BaseModel):
@@ -221,7 +226,12 @@ def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(databas
     return formatted_posts
 
 @router.post("/post/{post_id}/begen")
-def post_begen(post_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+def post_begen(
+    post_id: int, 
+    background_tasks: BackgroundTasks, # 2. Parametre olarak ekle
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post: raise HTTPException(status_code=404, detail="Post bulunamadı")
     
@@ -247,7 +257,9 @@ def post_begen(post_id: int, db: Session = Depends(database.get_db), current_use
             db.commit()
             hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
             if hedef_kullanici and hedef_kullanici.email:
-                send_social_notification_email(
+                # 3. E-POSTAYI ARKA PLANA GÖNDER!
+                background_tasks.add_task(
+                    send_social_notification_email,
                     to_email=hedef_kullanici.email,
                     actor_name=current_user.username,
                     notification_type="like",
@@ -258,7 +270,13 @@ def post_begen(post_id: int, db: Session = Depends(database.get_db), current_use
         return {"mesaj": "Post beğenildi", "begenildi": True}
 
 @router.post("/post/{post_id}/yorum")
-async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+async def yorum_yap(
+    post_id: int, 
+    yorum: CommentCreate, 
+    background_tasks: BackgroundTasks, # 🚀 1. BackgroundTasks Eklendi
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post: raise HTTPException(status_code=404, detail="Post bulunamadı")
     
@@ -283,17 +301,21 @@ async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(da
         )
         db.add(yeni_bildirim)
         db.commit()
+        
         hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
         if hedef_kullanici and hedef_kullanici.email:
-            send_social_notification_email(
+            # 🚀 2. E-POSTA İŞLEMİ ARKA PLANA ATILDI! (Sitenin donmasını engeller)
+            background_tasks.add_task(
+                send_social_notification_email,
                 to_email=hedef_kullanici.email,
                 actor_name=current_user.username,
                 notification_type="comment",
                 post_preview=post.content[:40] + "...",
                 comment_preview=new_comment.content
             )
-        return {"mesaj": "Yorum eklendi"}
-    
+            
+    # 🚀 3. KRİTİK DÜZELTME: Return işlemi if bloğundan çıkarıldı!
+    return {"mesaj": "Yorum eklendi"}
 
 
 # 🚀 2. Yorum Güncelleme Endpoint'i
@@ -359,33 +381,49 @@ def arama_yap(q: str, db: Session = Depends(database.get_db)):
     if not q or len(q.strip()) == 0: return []
     kullanicilar = db.query(models.User).filter(models.User.username.ilike(f"%{q}%")).limit(5).all()
     return [{"name": u.username.upper(), "username": u.username.lower(), "avatar": f"https://ui-avatars.com/api/?name={u.username}&background=random&color=fff"} for u in kullanicilar]
-
 @router.post("/takip-et/{takip_edilecek_id}")
-def takip_et(takip_edilecek_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.id == takip_edilecek_id: return {"hata": "Kendini takip edemezsin"}
-    existing_follow = db.query(models.Follow).filter(models.Follow.follower_id == current_user.id, models.Follow.followed_id == takip_edilecek_id).first()
+def takip_et(
+    takip_edilecek_id: int, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.id == takip_edilecek_id: 
+        return {"hata": "Kendini takip edemezsin"}
+        
+    existing_follow = db.query(models.Follow).filter(
+        models.Follow.follower_id == current_user.id, 
+        models.Follow.followed_id == takip_edilecek_id
+    ).first()
+    
     if existing_follow:
         db.delete(existing_follow)
         db.commit()
         return {"mesaj": "Takipten çıkıldı"}
+        
     new_follow = models.Follow(follower_id=current_user.id, followed_id=takip_edilecek_id)
     db.add(new_follow)
     db.commit()
+    
     # Takip satırı veritabanına eklendiğinde (new_follow commit edildikten hemen sonra):
     yeni_bildirim = models.Notification(
         user_id=takip_edilecek_id, # Takip edilen kişi (Hedef)
-        actor_id=current_user.id, # Takip butonuna basan (Aktör)
+        actor_id=current_user.id,  # Takip butonuna basan (Aktör)
         type="follow"
     )
     db.add(yeni_bildirim)
     db.commit()
+    
     hedef_kullanici = db.query(models.User).filter(models.User.id == takip_edilecek_id).first()
     if hedef_kullanici and hedef_kullanici.email:
-        send_social_notification_email(
+        # 🚀 İŞTE DÜZELTİLEN KISIM: E-posta direkt çağrılmıyor, arka plana görev olarak veriliyor
+        background_tasks.add_task(
+            send_social_notification_email,
             to_email=hedef_kullanici.email,
             actor_name=current_user.username,
             notification_type="follow"
         )
+        
     return {"mesaj": "Takip edildi."}
 
 @router.get("/akis")
@@ -411,3 +449,11 @@ def yorum_sil(yorum_id: int, db: Session = Depends(database.get_db), current_use
     db.delete(yorum)
     db.commit()
     return {"mesaj": "Yorum başarıyla silindi"}
+
+@router.post("/sifre-sifirla")
+def sifre_sifirla(data: SifreSifirlaSchema, db: Session = Depends(database.get_db)):
+    db_user = db.query(models.User).filter(models.User.email == data.email).first()
+    if not db_user: raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    db_user.password = get_password_hash(data.yeni_sifre)
+    db.commit()
+    return {"message": "Şifre başarıyla güncellendi ve hashlendi!"}

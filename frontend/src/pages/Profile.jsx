@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserX, Check, X, Save } from 'lucide-react';
+import { UserPlus, UserCheck, UserX, Check, X, Save, AlertTriangle, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import FeedCard from '../components/FeedCard';
 import Navbar from '../components/Navbar';
@@ -32,6 +32,11 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
   const [editPostContent, setEditPostContent] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Gönderi silme onay popup'ı
+  const [deleteConfirmPostId, setDeleteConfirmPostId] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [toast, setToast] = useState(null); // { type: 'success'|'error', message: string }
 
   const [followModal, setFollowModal] = useState({
     isOpen: false,
@@ -183,13 +188,20 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
     } catch (error) { console.error(error); }
   };
 
-  const handleDeletePost = async (postId) => {
-    const isConfirmed = window.confirm("Bu gönderiyi silmek istediğinize emin misiniz? (Tüm beğeni ve yorumlar da silinecektir)");
-    if (!isConfirmed) return;
+  // Bell butonuna tıklayınca sadece onay popup'ını açar
+  const handleDeletePost = (postId) => {
+    setDeleteConfirmPostId(postId);
+  };
+
+  // Popup'ta "Sil" onaylanınca gerçek silme isteği burada atılır
+  const confirmDeletePost = async () => {
+    const postId = deleteConfirmPostId;
+    if (!postId) return;
 
     const token = localStorage.getItem("tradein_token");
-    if (!token) return;
+    if (!token) { setDeleteConfirmPostId(null); return; }
 
+    setDeleteLoading(true);
     try {
       await axios.delete(`http://127.0.0.1:8000/post/sil/${postId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -205,11 +217,14 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
       });
 
       setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-      
-      alert("Gönderi başarıyla silindi.");
+      setToast({ type: 'success', message: 'Gönderi başarıyla silindi.' });
     } catch (error) {
       console.error("Post silinirken hata oluştu:", error);
-      alert("Gönderi silinirken bir hata oluştu.");
+      setToast({ type: 'error', message: 'Gönderi silinirken bir hata oluştu.' });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteConfirmPostId(null);
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -400,6 +415,51 @@ const Profile = ({ isLoggedIn, setIsLoggedIn }) => {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Gönderi Silme Onay Popup'ı */}
+          {deleteConfirmPostId && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+              <div className={`w-full max-w-sm rounded-2xl border border-red-500/30 ${t.modalBg} shadow-2xl overflow-hidden`}>
+                <div className="flex items-center gap-3 px-6 py-4 border-b border-red-900/30">
+                  <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 shrink-0">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <p className={`text-sm font-bold ${t.textPrimary}`}>Gönderiyi Sil</p>
+                </div>
+                <div className="px-6 py-5">
+                  <p className={`text-sm ${t.textSecond} leading-relaxed`}>
+                    Bu gönderiyi silmek istediğinize emin misiniz?
+                    <span className="block mt-1 text-red-400 font-semibold">Tüm beğeni ve yorumlar da silinecektir.</span>
+                  </p>
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => setDeleteConfirmPostId(null)}
+                      disabled={deleteLoading}
+                      className={`flex-1 py-2.5 rounded-xl border ${t.cardBorder} ${t.textSecond} ${t.hoverBg} text-sm font-semibold transition-all disabled:opacity-50`}>
+                      İptal
+                    </button>
+                    <button
+                      onClick={confirmDeletePost}
+                      disabled={deleteLoading}
+                      className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-red-600/50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2">
+                      {deleteLoading ? 'Siliniyor...' : <><Trash2 size={15} /> Sil</>}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bilgilendirme Toast'ı */}
+          {toast && (
+            <div className={`fixed bottom-6 right-6 z-[110] flex items-center gap-3 px-5 py-3.5 rounded-xl border shadow-2xl
+              ${toast.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+              {toast.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
+              <span className="text-sm font-semibold">{toast.message}</span>
             </div>
           )}
         </div>

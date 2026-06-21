@@ -99,8 +99,6 @@ const Settings = ({ isLoggedIn, setIsLoggedIn }) => {
   const [notifPrice, setNotifPrice]   = useState(() => localStorage.getItem('notif_price') !== 'false');
   const [notifSocial, setNotifSocial] = useState(() => localStorage.getItem('notif_social') !== 'false');
 
-  /* Dil */
-  const [language, setLanguage] = useState(() => localStorage.getItem('tradein_lang') || 'tr');
 
   /* Kullanıcı adı değiştirme */
   const [newUsername, setNewUsername]       = useState('');
@@ -138,7 +136,6 @@ const Settings = ({ isLoggedIn, setIsLoggedIn }) => {
 
   useEffect(() => { localStorage.setItem('notif_price', notifPrice); }, [notifPrice]);
   useEffect(() => { localStorage.setItem('notif_social', notifSocial); }, [notifSocial]);
-  useEffect(() => { localStorage.setItem('tradein_lang', language); }, [language]);
 
   /* ── Kullanıcı adı kaydet ── */
   const handleUsernameSave = async () => {
@@ -241,15 +238,6 @@ const Settings = ({ isLoggedIn, setIsLoggedIn }) => {
                   </div>
                 </SettingRow>
 
-                <SettingRow t={t} icon={Globe} title="Dil" subtitle="Arayüz dili">
-                  <select value={language} onChange={e => setLanguage(e.target.value)}
-                    className={`${t.deepCardBg} border ${t.inputBorder} text-sm ${t.textPrimary}
-                      rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500`}>
-                    <option value="tr">🇹🇷 Türkçe</option>
-                    <option value="en">🇺🇸 English</option>
-                    <option value="de">🇩🇪 Deutsch</option>
-                  </select>
-                </SettingRow>
               </div>
             </section>
 

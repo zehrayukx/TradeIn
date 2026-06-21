@@ -25,7 +25,7 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
@@ -36,7 +36,6 @@ const Register = () => {
 
     setIsLoading(true);
     try {
-
       const response = await axios.post("http://127.0.0.1:8000/kayit-ol", {
         username: formData.kullanici_adi, 
         email: formData.email,            
@@ -48,8 +47,22 @@ const Register = () => {
       navigate("/login"); 
     } catch (err) {
       console.error("Kayıt hatası:", err);
-      const errorMessage = err.response?.data?.detail || "Kayıt olurken bir hata oluştu.";
-      setError(errorMessage);
+      
+      // Backend'den gelen hata detayını al
+      const errorDetail = err.response?.data?.detail;
+
+      // Eğer hata "email" veya "kayıtlı" gibi ifadeler içeriyorsa özelleştir
+      if (err.response?.status === 400 || err.response?.status === 409) {
+        if (typeof errorDetail === 'string' && (errorDetail.toLowerCase().includes("email") || errorDetail.toLowerCase().includes("registered"))) {
+          setError("Bu e-posta adresi zaten kayıtlı! Lütfen giriş yapmayı dene.");
+        } else if (typeof errorDetail === 'string' && errorDetail.toLowerCase().includes("username")) {
+          setError("Bu kullanıcı adı zaten alınmış.");
+        } else {
+          setError(errorDetail || "Kayıt olurken bir hata oluştu.");
+        }
+      } else {
+        setError("Sunucuya bağlanılamadı. Lütfen daha sonra tekrar dene.");
+      }
     } finally {
       setIsLoading(false);
     }

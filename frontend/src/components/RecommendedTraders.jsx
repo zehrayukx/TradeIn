@@ -36,7 +36,7 @@ const RecommendedTraders = ({ onFollowUpdate }) => {
       const response = await axios.post(`http://127.0.0.1:8000/takip-et/${userId}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const isNowFollowing = response.data.mesaj.includes("takip edildi");
+      const isNowFollowing = response.data.mesaj.toLowerCase().includes("takip edildi");
       setTraders(prev => prev.map(tr => tr.id === userId ? { ...tr, is_following: isNowFollowing } : tr));
       
       // 🚀 EKLENEN TEK FONKSİYONELİTE BURASI: 

@@ -4,68 +4,90 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-// 🚀 1. ADIM: Props listesinden notifCount'u kaldırdık, artık içeride yöneteceğiz
 const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, setSearchQuery }) => {
   const { theme } = useTheme();
   const t = getThemeClasses(theme);
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const [userResults, setUserResults] = useState([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const [userResults, setUserResults]         = useState([]);
+  const [isDropdownOpen, setIsDropdownOpen]   = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPostContent, setNewPostContent]   = useState('');
+  const [isPublishing, setIsPublishing]       = useState(false);
+  const [notifCount, setNotifCount]           = useState(0);
+
+  // 🚀 Cache'ten anında oku → sayfa geçişinde "U" flaşı olmaz
+  const [navbarUser, setNavbarUser] = useState(() => {
+    const cached = localStorage.getItem('tradein_display_name');
+    return cached ? { name: cached } : null;
+  });
+
   const inputRef = useRef(null);
 
-  // NAVBAR İÇİ PAYLAŞIM STATE'LERİ
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newPostContent, setNewPostContent] = useState("");
-  const [isPublishing, setIsPublishing] = useState(false);
-
-  // 🚀 2. ADIM: Bildirim sayısını hafızada tutacak lokal state
-  const [notifCount, setNotifCount] = useState(0);
-
-  // 🚀 3. ADIM: Bildirimleri backend'den çeken asenkron mekanizma
+  // 🚀 Login değişince backend'den çek, cache'e yaz
   useEffect(() => {
-    if (!isLoggedIn) {
-      setNotifCount(0);
-      return;
-    }
-
-    const fetchNavbarNotifications = async () => {
+    const fetchNavbarUser = async () => {
+      const token = localStorage.getItem('tradein_token');
+      if (!isLoggedIn || !token) {
+        setNavbarUser(null);
+        localStorage.removeItem('tradein_display_name');
+        return;
+      }
       try {
-        const token = localStorage.getItem("tradein_token");
-        if (!token) return;
-
-        // Backend'deki sosyal bildirim ucuna istek atıyoruz
-        const res = await axios.get("http://127.0.0.1:8000/bildirimler", {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await axios.get('http://127.0.0.1:8000/profilim', {
+          headers: { Authorization: `Bearer ${token}` },
         });
-
-        // Sadece okunmamış bildirimleri (is_read === false) filtrele ve sayısını al
-        const unreadCount = res.data.filter(n => !n.is_read).length;
-        setNotifCount(unreadCount);
-
-      } catch (error) {
-        console.error("Navbar bildirim sayısı çekilemedi:", error);
+        const displayName = res.data.name || res.data.username || 'U';
+        localStorage.setItem('tradein_display_name', displayName);
+        setNavbarUser({ name: displayName });
+      } catch {
+        setNavbarUser(user || null);
       }
     };
+    fetchNavbarUser();
+  }, [isLoggedIn]);
 
-    // İlk açılışta ve sayfa geçişlerinde tetikle
-    fetchNavbarNotifications();
+  const avatarName = navbarUser?.name || user?.name || 'U';
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(avatarName)}&background=random&color=fff`;
 
-    // 🎯 Sidebar ile tam senkronize olması için her 15 saniyede bir arkadan verileri tazele
-    const interval = setInterval(fetchNavbarNotifications, 15000);
-    return () => clearInterval(interval);
+  useEffect(() => {
+    if (!isLoggedIn) { setNotifCount(0); return; }
 
+    const fetchCount = async () => {
+      try {
+        const token = localStorage.getItem('tradein_token');
+        if (!token) return;
+        const res = await axios.get('http://127.0.0.1:8000/bildirimler', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setNotifCount(res.data.filter(n => !n.read).length);
+      } catch { }
+    };
+
+    fetchCount();
+    const interval = setInterval(fetchCount, 15000);
+
+    const handleNotifUpdate = (e) => {
+      if (e.detail?.unreadCount !== undefined) {
+        setNotifCount(e.detail.unreadCount);
+      } else {
+        fetchCount();
+      }
+    };
+    window.addEventListener('tradein:notifications-updated', handleNotifUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('tradein:notifications-updated', handleNotifUpdate);
+    };
   }, [isLoggedIn, location.pathname]);
 
-  // Tarayıcı autocomplete'i engelle
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.setAttribute('autocomplete', 'off');
       inputRef.current.setAttribute('readonly', 'readonly');
-      setTimeout(() => {
-        if (inputRef.current) inputRef.current.removeAttribute('readonly');
-      }, 200);
+      setTimeout(() => { if (inputRef.current) inputRef.current.removeAttribute('readonly'); }, 200);
     }
   }, []);
 
@@ -89,34 +111,29 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
 
   const handlePublishPost = async () => {
     if (!newPostContent.trim()) return;
-    const token = localStorage.getItem("tradein_token");
+    const token = localStorage.getItem('tradein_token');
     setIsPublishing(true);
     try {
-      await axios.post('http://127.0.0.1:8000/post-olustur', 
-        { content: newPostContent, media_url: "" }, 
+      await axios.post('http://127.0.0.1:8000/post-olustur',
+        { content: newPostContent, media_url: '' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
-      setNewPostContent("");
+      setNewPostContent('');
       setShowCreateModal(false);
-
-      if (location.pathname === '/') {
-        window.location.reload();
-      } else {
-        navigate('/');
-      }
-    } catch (error) { 
+      if (location.pathname === '/') window.location.reload();
+      else navigate('/');
+    } catch (error) {
       console.error(error);
-      alert("Gönderi paylaşılırken bir hata oluştu.");
-    } finally { 
-      setIsPublishing(false); 
+      alert('Gönderi paylaşılırken bir hata oluştu.');
+    } finally {
+      setIsPublishing(false);
     }
   };
 
   return (
     <nav className={`${t.navBg} border-b ${t.navBorder} sticky top-0 z-50 transition-colors duration-300`}>
-      <input type="text"     name="fake_user_field"  style={{ display:'none' }} readOnly tabIndex={-1} />
-      <input type="password" name="fake_pass_field"  style={{ display:'none' }} readOnly tabIndex={-1} />
+      <input type="text"     name="fake_user_field"  style={{ display: 'none' }} readOnly tabIndex={-1} />
+      <input type="password" name="fake_pass_field"  style={{ display: 'none' }} readOnly tabIndex={-1} />
       <input type="email"    name="fake_email_field" style={{ display: 'none' }} readOnly tabIndex={-1} />
 
       <div className="px-4 h-16 flex items-center justify-between gap-4">
@@ -154,7 +171,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
           />
           {isDropdownOpen && userResults.length > 0 && (
             <div className={`absolute top-full mt-2 w-full ${t.dropdownBg} border ${t.cardBorder} rounded-xl shadow-2xl overflow-hidden z-50`}>
-              <div className={`p-2 text-[10px] font-bold ${t.textMuted} ${t.cardBg2} tracking-wider`} style={{ textTransform: 'none' }}>Kullanıcılar</div>
+              <div className={`p-2 text-[10px] font-bold ${t.textMuted} ${t.cardBg2} tracking-wider`}>Kullanıcılar</div>
               {userResults.map(u => (
                 <Link key={u.username} to={`/profile/${u.username}`}
                   onClick={() => { setIsDropdownOpen(false); setSearchQuery && setSearchQuery(''); }}
@@ -172,7 +189,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
 
         {/* SAĞ */}
         <div className="flex items-center gap-3 shrink-0">
-          
+
           {isLoggedIn && location.pathname !== '/settings' && (
             <button onClick={() => setShowCreateModal(true)} className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all flex items-center gap-2 group">
               <PlusCircle size={24} className="group-hover:scale-110 transition-transform" />
@@ -186,7 +203,6 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
             </button>
           )}
 
-          {/* 🎯 BİLDİRİM ÇANI SİMGESİ (Artık lokal state'e bağlı ve kalıcı) */}
           <Link to="/notifications" className={`p-2 ${t.textMuted} ${t.hoverText} transition-colors relative flex items-center justify-center`}>
             <Bell size={24} />
             {notifCount > 0 && (
@@ -198,8 +214,11 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
 
           {isLoggedIn ? (
             <Link to="/profile" className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] ml-1 shrink-0">
-              <img src={`https://ui-avatars.com/api/?name=${user?.name || 'U'}&background=random&color=fff`} alt="Profil"
-                className={`w-full h-full rounded-full border-2 ${theme === 'dark' ? 'border-[#0f1117]' : 'border-white'} object-cover`} />
+              <img
+                src={avatarUrl}
+                alt="Profil"
+                className={`w-full h-full rounded-full border-2 ${theme === 'dark' ? 'border-[#0f1117]' : 'border-white'} object-cover`}
+              />
             </Link>
           ) : (
             <Link to="/login" className={`flex items-center gap-2 ${t.cardBg2} ${t.hoverBg} border ${t.border} px-4 py-1.5 rounded-full transition-colors ml-1`}>
@@ -210,7 +229,6 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
         </div>
       </div>
 
-      {/* GÖNDERİ OLUŞTURMA MODALİ */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
           <div className={`${t.modalBg || t.cardBg} border ${t.cardBorder} rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden`}>
@@ -219,20 +237,20 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
               <button onClick={() => setShowCreateModal(false)} className={`p-2 ${t.textSecond} hover:text-red-500 transition-colors`}><X size={20} /></button>
             </div>
             <div className="p-6">
-              <textarea 
-                autoFocus 
-                value={newPostContent} 
+              <textarea
+                autoFocus
+                value={newPostContent}
                 onChange={e => setNewPostContent(e.target.value)}
                 placeholder="paylas: "
-                className={`w-full ${t.inputBg} border ${t.inputBorder} rounded-xl text-lg ${t.textPrimary} resize-none outline-none p-4 min-h-[150px] focus:border-blue-500 transition-all`} 
+                className={`w-full ${t.inputBg} border ${t.inputBorder} rounded-xl text-lg ${t.textPrimary} resize-none outline-none p-4 min-h-[150px] focus:border-blue-500 transition-all`}
               />
               <div className="flex justify-end pt-4 mt-4">
-                <button 
-                  disabled={!newPostContent.trim() || isPublishing} 
+                <button
+                  disabled={!newPostContent.trim() || isPublishing}
                   onClick={handlePublishPost}
                   className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-400 text-white px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2"
                 >
-                  {isPublishing ? "Paylaşılıyor..." : "Paylaş"}
+                  {isPublishing ? 'Paylaşılıyor...' : 'Paylaş'}
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Heart, Share2, MoreHorizontal, Send, Edit2, Trash2, X, Check } from 'lucide-react'; // 🚀 Edit2, X ve Check eklendi
+import { MessageSquare, Heart, Share2, MoreHorizontal, Send, Edit2, Trash2, X, Check, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
@@ -12,6 +12,11 @@ const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
   const [newComment, setNewComment] = useState("");
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [localCommentCount, setLocalCommentCount] = useState(post.comments || 0);
+
+  // Yorum silme onay popup'ı (window.confirm yerine)
+  const [deleteCommentTarget, setDeleteCommentTarget] = useState(null);
+  const [deletingComment, setDeletingComment] = useState(false);
+  const [commentToast, setCommentToast] = useState(null);
 
   // 🚀 YORUM DÜZENLEME STATE'LERİ
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -59,23 +64,34 @@ const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
     }
   };
 
-  const handleDeleteComment = async (commentId) => {
-    const isConfirmed = window.confirm("Bu yorumu silmek istediğinize emin misiniz?");
-    if (!isConfirmed) return;
+  // Çöp kutusuna tıklayınca sadece popup'ı açar
+  const handleDeleteComment = (commentId) => {
+    setDeleteCommentTarget(commentId);
+  };
+
+  // Popup'ta "Sil" onaylanınca gerçek silme isteği atılır
+  const confirmDeleteComment = async () => {
+    const commentId = deleteCommentTarget;
+    if (!commentId) return;
 
     const token = localStorage.getItem("tradein_token");
-    if (!token) return;
+    if (!token) { setDeleteCommentTarget(null); return; }
 
+    setDeletingComment(true);
     try {
       await axios.delete(`http://127.0.0.1:8000/post/yorum-sil/${commentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setComments(prevComments => prevComments.filter(comment => comment.id !== commentId));
       setLocalCommentCount(prev => Math.max(0, prev - 1));
-      
+      setCommentToast({ type: 'success', message: 'Yorum silindi.' });
     } catch (error) {
-      alert(error.response?.data?.detail || "Yorum silinirken bir hata oluştu.");
+      setCommentToast({ type: 'error', message: error.response?.data?.detail || 'Yorum silinirken bir hata oluştu.' });
+    } finally {
+      setDeletingComment(false);
+      setDeleteCommentTarget(null);
+      setTimeout(() => setCommentToast(null), 3000);
     }
   };
 
@@ -251,6 +267,50 @@ const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
           </div>
         )}
       </div>
+
+      {/* Yorum Silme Onay Popup'ı */}
+      {deleteCommentTarget && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className={`w-full max-w-sm rounded-2xl border border-red-500/30 ${t.modalBg} shadow-2xl overflow-hidden`}>
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-red-900/30">
+              <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 shrink-0">
+                <AlertTriangle size={18} />
+              </div>
+              <p className={`text-sm font-bold ${t.textPrimary}`}>Yorumu Sil</p>
+            </div>
+            <div className="px-6 py-5">
+              <p className={`text-sm ${t.textSecond} leading-relaxed`}>
+                Bu yorumu silmek istediğinize emin misiniz?
+              </p>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setDeleteCommentTarget(null)}
+                  disabled={deletingComment}
+                  className={`flex-1 py-2.5 rounded-xl border ${t.cardBorder} ${t.textSecond} ${t.hoverBg} text-sm font-semibold transition-all disabled:opacity-50`}>
+                  İptal
+                </button>
+                <button
+                  onClick={confirmDeleteComment}
+                  disabled={deletingComment}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-red-600/50 text-white text-sm font-bold transition-all flex items-center justify-center gap-2">
+                  {deletingComment ? 'Siliniyor...' : <><Trash2 size={15} /> Sil</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bilgilendirme Toast'ı */}
+      {commentToast && (
+        <div className={`fixed bottom-6 right-6 z-[110] flex items-center gap-3 px-5 py-3.5 rounded-xl border shadow-2xl
+          ${commentToast.type === 'success'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+            : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+          {commentToast.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
+          <span className="text-sm font-semibold">{commentToast.message}</span>
+        </div>
+      )}
     </div>
   );
 };

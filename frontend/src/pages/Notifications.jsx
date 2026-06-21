@@ -8,81 +8,6 @@ import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
-/* ─────────────────────────────────────────
-   MOCK VERİ — backend bağlanınca silinecek
-   Endpoint notu:
-   GET /bildirimler  → aşağıdaki formatta dizi döndürsün
-───────────────────────────────────────── */
-const MOCK_NOTIFICATIONS = [
-  {
-    id: 1,
-    type: 'follow',          // 'follow' | 'like' | 'comment'
-    actor_name: 'Ahmet Yılmaz',
-    actor_username: 'ahmetyilmaz',
-    actor_avatar: 'https://ui-avatars.com/api/?name=AY&background=3b82f6&color=fff',
-    created_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),   // 10 dk önce
-    read: false,
-    post_id: null,
-    post_preview: null,
-  },
-  {
-    id: 2,
-    type: 'like',
-    actor_name: 'Zehra Yüksel',
-    actor_username: 'zehrayukx',
-    actor_avatar: 'https://ui-avatars.com/api/?name=ZY&background=a855f7&color=fff',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 sa önce
-    read: false,
-    post_id: 42,
-    post_preview: 'Borsa ve Kripto yatırımı yapıyorum.',
-  },
-  {
-    id: 3,
-    type: 'comment',
-    actor_name: 'Mehmet Kaya',
-    actor_username: 'mehmetkaya',
-    actor_avatar: 'https://ui-avatars.com/api/?name=MK&background=10b981&color=fff',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5 sa önce
-    read: true,
-    post_id: 42,
-    post_preview: 'Borsa ve Kripto yatırımı yapıyorum.',
-    comment_preview: 'Harika bir analiz! BTC için hedef fiyat ne düşünüyorsun?',
-  },
-  {
-    id: 4,
-    type: 'like',
-    actor_name: 'Selin Arslan',
-    actor_username: 'selinarslan',
-    actor_avatar: 'https://ui-avatars.com/api/?name=SA&background=f59e0b&color=fff',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 27).toISOString(), // 1 gün önce
-    read: true,
-    post_id: 38,
-    post_preview: 'Altın fiyatları bu hafta yükselebilir.',
-  },
-  {
-    id: 5,
-    type: 'follow',
-    actor_name: 'Can Demir',
-    actor_username: 'candemir',
-    actor_avatar: 'https://ui-avatars.com/api/?name=CD&background=ef4444&color=fff',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 gün önce
-    read: true,
-    post_id: null,
-    post_preview: null,
-  },
-  {
-    id: 6,
-    type: 'comment',
-    actor_name: 'Ayşe Çelik',
-    actor_username: 'aysecelik',
-    actor_avatar: 'https://ui-avatars.com/api/?name=AC&background=6366f1&color=fff',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), // 3 gün önce
-    read: true,
-    post_id: 35,
-    post_preview: 'Dolar/TL bu hafta 33 olur mu?',
-    comment_preview: 'Bence olmaz, TCMB faiz artırabilir.',
-  },
-];
 
 /* ─── Zaman formatı ─── */
 function timeAgo(isoString) {
@@ -222,9 +147,9 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setNotifications(data);
-    } catch {
-      // Backend henüz hazır değil — mock veri kullan
-      setNotifications(MOCK_NOTIFICATIONS);
+    } catch (err) {
+      console.error("Bildirimler yüklenemedi:", err);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
@@ -246,6 +171,9 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch { /* optimistic update yeterli */ }
+    finally {
+      window.dispatchEvent(new Event('tradein:notifications-updated'));
+    }
   };
 
   /* ── Tümünü okundu işaretle ── */
@@ -259,6 +187,9 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch { /* optimistic update yeterli */ }
+    finally {
+      window.dispatchEvent(new Event('tradein:notifications-updated'));
+    }
   };
 
   /* ── Sil ── */
@@ -272,6 +203,9 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch { /* optimistic update yeterli */ }
+    finally {
+      window.dispatchEvent(new Event('tradein:notifications-updated'));
+    }
   };
 
   /* ── Filtrele ── */

@@ -10,7 +10,7 @@ import { useTheme, getThemeClasses } from "../context/ThemeContext";
 import { getMarkets, addFavorite, removeFavorite } from "../services/marketService";
 
 // 1. Kategoriler aynı kalıyor
-const categories = ["Tümü","Kripto","Döviz","Emtia","Borsa","Altın","Gümüş","ABD Piyasaları","Türkiye Piyasaları"];
+const categories = ["Tümü","Kripto","Döviz","Emtia","Borsa","Altın","Gümüş"];
 
 // 2. TickerTape'deki gibi FALLBACK veri setini 10'a çıkardık
 const FALLBACK_DATA = [
