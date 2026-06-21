@@ -8,6 +8,7 @@ from sqlalchemy import or_ # 🚀 En tepede or_ fonksiyonunu import etmeyi unutm
 import os
 import json
 from groq import Groq # 🚀 1. ADIM: Groq kütüphanesini import et
+from fastapi import BackgroundTasks
 
 # 🎯 AKILLI KATEGORİ SÖZLÜĞÜ (Keyword Mapping)
 # Kullanıcı soldaki anahtara bastığında, sağdaki dizideki tüm kelimeler aranır.
@@ -225,7 +226,12 @@ def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(databas
     return formatted_posts
 
 @router.post("/post/{post_id}/begen")
-def post_begen(post_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+def post_begen(
+    post_id: int, 
+    background_tasks: BackgroundTasks, # 2. Parametre olarak ekle
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post: raise HTTPException(status_code=404, detail="Post bulunamadı")
     
@@ -251,7 +257,9 @@ def post_begen(post_id: int, db: Session = Depends(database.get_db), current_use
             db.commit()
             hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
             if hedef_kullanici and hedef_kullanici.email:
-                send_social_notification_email(
+                # 3. E-POSTAYI ARKA PLANA GÖNDER!
+                background_tasks.add_task(
+                    send_social_notification_email,
                     to_email=hedef_kullanici.email,
                     actor_name=current_user.username,
                     notification_type="like",
