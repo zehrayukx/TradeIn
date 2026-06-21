@@ -162,49 +162,45 @@ async def post_guncelle(post_id: int, gelen_veri: PostUpdate, db: Session = Depe
 
 @router.get("/populer-postlar")
 def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
-    # Orijinal kullanıcı join sorgun
+    # 1. Bütün postları çekiyoruz
     query = db.query(models.Post, models.User.username).join(models.User)
     results = query.all()
     
-    # 🚀 3. ADIM: EĞER HASHTAG (KATEGORİ) SEÇİLİYSE YAPAY ZEKAYI TETİKLE
+    # 2. Eğer bir tab'a (hashtag) tıklandıysa senin SÖZLÜĞÜNÜ devreye sokuyoruz
     if hashtag and results:
-        # Groq'a göndermek üzere tüm postların sadece id ve içeriklerini minik bir listeye alıyoruz
-        posts_for_ai = [{"id": p.id, "content": p.content} for p, u in results]
+        hashtag_kucuk = hashtag.lower()
         
-        system_prompt = (
-            "Sen gelişmiş bir finansal analist yapay zekasısın. Sana gönderilen sosyal medya post listesini, "
-            "kullanıcının seçtiği finansal kategoriye göre analiz etmelisin. Görevin, içerik olarak (doğrudan veya anlamsal olarak) "
-            "bu kategoriyle ilişkili olan postların ID'lerini ayıklamaktır.\n\n"
-            "ZORUNLU KURAL: Çıktın SADECE ve SADECE şu formatta bir JSON olmalıdır, asla açıklama yazma:\n"
-            '{"matched_ids": [1, 4, 7]}'
-        )
+        # SİHİR BURADA: Tıklanan tab (örn: 'bitcoin') senin sözlüğünde varsa o diziyi al, 
+        # yoksa sadece tıklanan kelimeyi içinde barındıran bir dizi oluştur.
+        aranacak_kelimeler = FINANCE_CATEGORY_MAP.get(hashtag_kucuk, [hashtag_kucuk])
         
-        user_prompt = f"Hedef Finansal Kategori: {hashtag}\nPost Listesi: {json.dumps(posts_for_ai, ensure_ascii=False)}"
+        # İçinde bu kelimelerden HERHANGİ BİRİ geçenleri listeye dahil et
+        filtrelenmis_sonuclar = []
+        for p, u in results:
+            icerik_kucuk = p.content.lower()
+            if any(kelime in icerik_kucuk for kelime in aranacak_kelimeler):
+                filtrelenmis_sonuclar.append((p, u))
+                
+        results = filtrelenmis_sonuclar
+
+    # 3. Klasik formatlama işlemlerin (Hiç dokunulmadı)
+    formatted_posts = []
+    for p, u in results:
+        like_count = db.query(models.Like).filter(models.Like.post_id == p.id).count()
+        comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
+        is_liked = bool(current_user and db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first())
+        formatted_posts.append({
+            "post_id": p.id, 
+            "icerik": p.content, 
+            "yazar": u, 
+            "tarih": p.created_at, 
+            "likes": like_count, 
+            "comments": comment_count, 
+            "isLiked": is_liked
+        })
         
-        try:
-            # Groq üzerinden en hızlı model olan Llama 3'ü (veya benzerini) çağırıyoruz
-            chat_completion = groq_client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                model="llama3-8b-8192", # ya da kullandığın aktif groq modeli
-                temperature=0.0, # Tutarlı ve kesin yanıt vermesi için 0 yapıyoruz
-                response_format={"type": "json_object"} # Yanıtın kesinlikle JSON gelmesini zorunlu kılıyoruz
-            )
-            
-            # Gelen yanıtı parse et ve eşleşen ID listesini al
-            ai_response = json.loads(chat_completion.choices[0].message.content)
-            matched_ids = ai_response.get("matched_ids", [])
-            
-            # Veritabanı sonuçlarımızı, yapay zekanın onay verdiği ID'lere göre filtrele!
-            results = [(p, u) for p, u in results if p.id in matched_ids]
-            
-        except Exception as e:
-            print(f"Groq Filtreleme Hatası: {e}")
-            # Eğer yapay zeka katmanı anlık bir problem yaşarsa sistem çökmesin diye 
-            # klasik kelime eşleşmesi filtresine (Fallback) düşüyoruz:
-            results = [(p, u) for p, u in results if hashtag.lower() in p.content.lower()]
+    formatted_posts.sort(key=lambda x: x["likes"], reverse=True)
+    return formatted_posts
 
     # 🔒 4. ADIM: Senin Orijinal Döngün ve Formatlaman (Milimetrik olarak korundu)
     formatted_posts = []
