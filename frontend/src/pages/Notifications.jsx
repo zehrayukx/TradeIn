@@ -7,9 +7,12 @@ import {
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
-import { useNavigate } from 'react-router-dom';
 
-
+/* ─────────────────────────────────────────
+   MOCK VERİ — backend bağlanınca silinecek
+   Endpoint notu:
+   GET /bildirimler  → aşağıdaki formatta dizi döndürsün
+───────────────────────────────────────── */
 const MOCK_NOTIFICATIONS = [
   {
     id: 1,
@@ -204,16 +207,24 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('tradein_token');
-
+      /*
+       * Backend'ci için not:
+       * GET /bildirimler  — Authorization: Bearer <token>
+       * Response: [{ id, type, actor_name, actor_username, actor_avatar,
+       *              created_at, read, post_id, post_preview, comment_preview }]
+       *
+       * type alanı: 'follow' | 'like' | 'comment'
+       * Beğeni ve yorumlar son 7 gün ile sınırlandırılsın (backend filtresi).
+       */
       const res = await fetch('http://127.0.0.1:8000/bildirimler', {
         headers: { Authorization: `Bearer ${token}` },
       });
-       if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error();
       const data = await res.json();
       setNotifications(data);
-    } catch (err) {
-      console.error("Bildirimler yüklenemedi:", err);
-      setNotifications([]);
+    } catch {
+      // Backend henüz hazır değil — mock veri kullan
+      setNotifications(MOCK_NOTIFICATIONS);
     } finally {
       setLoading(false);
     }
@@ -232,14 +243,10 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
       /* Backend: PUT /bildirimler/{id}/oku */
       await fetch(`http://127.0.0.1:8000/bildirimler/${id}/oku`, {
         method: 'PUT',
-  headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
     } catch { /* optimistic update yeterli */ }
-    finally {
-      window.dispatchEvent(new Event('tradein:notifications-updated'));
-    }
   };
-
 
   /* ── Tümünü okundu işaretle ── */
   const handleReadAll = async () => {
@@ -252,9 +259,6 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch { /* optimistic update yeterli */ }
-    finally {
-      window.dispatchEvent(new Event('tradein:notifications-updated'));
-    }
   };
 
   /* ── Sil ── */
@@ -265,12 +269,9 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
       /* Backend: DELETE /bildirimler/{id} */
       await fetch(`http://127.0.0.1:8000/bildirimler/${id}`, {
         method: 'DELETE',
-         headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
     } catch { /* optimistic update yeterli */ }
-    finally {
-      window.dispatchEvent(new Event('tradein:notifications-updated'));
-    }
   };
 
   /* ── Filtrele ── */
