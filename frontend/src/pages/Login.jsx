@@ -3,19 +3,6 @@ import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, KeyRound, ShieldCheck } from "lucide-react";
 import axios from "axios";
 
-/*
- * step değerleri:
- * 'login'  → normal giriş
- * 'email'  → şifre unuttum: e-posta gir
- * 'code'   → onay kodunu gir
- * 'reset'  → yeni şifre belirle
- *
- * NOT — Backend Bağlantı Notu:
- * Şu an tüm şifre sıfırlama adımlarında API isteği atılıyor
- * ama backend hazır olmasa bile bir sonraki adıma geçiliyor.
- * Backend hazır olduğunda catch bloklarındaki yorumları kaldır,
- * hata mesajlarını aktif et.
- */
 
 const Login = ({ setIsLoggedIn }) => {
   const navigate = useNavigate();
