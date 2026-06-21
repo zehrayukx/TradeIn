@@ -270,7 +270,13 @@ def post_begen(
         return {"mesaj": "Post beğenildi", "begenildi": True}
 
 @router.post("/post/{post_id}/yorum")
-async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+async def yorum_yap(
+    post_id: int, 
+    yorum: CommentCreate, 
+    background_tasks: BackgroundTasks, # 🚀 1. BackgroundTasks Eklendi
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post: raise HTTPException(status_code=404, detail="Post bulunamadı")
     
@@ -295,17 +301,21 @@ async def yorum_yap(post_id: int, yorum: CommentCreate, db: Session = Depends(da
         )
         db.add(yeni_bildirim)
         db.commit()
+        
         hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
         if hedef_kullanici and hedef_kullanici.email:
-            send_social_notification_email(
+            # 🚀 2. E-POSTA İŞLEMİ ARKA PLANA ATILDI! (Sitenin donmasını engeller)
+            background_tasks.add_task(
+                send_social_notification_email,
                 to_email=hedef_kullanici.email,
                 actor_name=current_user.username,
                 notification_type="comment",
                 post_preview=post.content[:40] + "...",
                 comment_preview=new_comment.content
             )
-        return {"mesaj": "Yorum eklendi"}
-    
+            
+    # 🚀 3. KRİTİK DÜZELTME: Return işlemi if bloğundan çıkarıldı!
+    return {"mesaj": "Yorum eklendi"}
 
 
 # 🚀 2. Yorum Güncelleme Endpoint'i
