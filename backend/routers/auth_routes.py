@@ -15,15 +15,34 @@ class UserCreate(BaseModel):
 
 @router.post("/kayit-ol")
 def kayit_ol(kullanici: UserCreate, db: Session = Depends(database.get_db)):
+    # 1. Kontrol: E-posta zaten kayıtlı mı?
+    existing_user = db.query(models.User).filter(models.User.email == kullanici.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bu e-posta adresi zaten kayıtlı."
+        )
+
+    # 2. Kontrol: Kullanıcı adı zaten alınmış mı?
+    existing_username = db.query(models.User).filter(models.User.username == kullanici.username).first()
+    if existing_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bu kullanıcı adı zaten alınmış."
+        )
+
+    # 3. Kayıt İşlemi
     hashed_pwd = auth.get_password_hash(kullanici.password)
     new_user = models.User(
         username=kullanici.username, 
         email=kullanici.email, 
         password_hash=hashed_pwd 
     )
+    
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    
     return {"mesaj": "Kayıt başarılı"}
 
 @router.post("/login")
