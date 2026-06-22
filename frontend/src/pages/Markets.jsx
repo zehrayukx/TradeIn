@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Search, Star, Bell, ChevronDown,
+  Search, Bell, ChevronDown,
   TrendingUp, TrendingDown, Target, Activity, Smartphone, Mail, X
 } from "lucide-react";
 import Navbar from "../components/Navbar";
@@ -10,10 +10,10 @@ import { useTheme, getThemeClasses } from "../context/ThemeContext";
 import { getMarkets, addFavorite, removeFavorite } from "../services/marketService";
 import ChatBox from '../components/ChatBox';
 
-// 1. Kategoriler aynı kalıyor
+// 1. Kategoriler
 const categories = ["Tümü","Kripto","Döviz","Emtia","Borsa","Altın","Gümüş"];
 
-// 2. TickerTape'deki gibi FALLBACK veri setini 10'a çıkardık
+// 2. FALLBACK Veri Seti
 const FALLBACK_DATA = [
   { name:"Bitcoin",  symbol:"BTC", category:"Kripto", price:"$68,500.00", tryPrice:"₺2,212,550.00", change:1.20, marketCap:"$1.31T", volume:"$28.45B", logo:"https://ui-avatars.com/api/?name=BT&background=f7931a&color=fff" },
   { name:"Ethereum", symbol:"ETH", category:"Kripto", price:"$3,542.18", tryPrice:"₺114,423.68", change:-0.45, marketCap:"$425.67B", volume:"$15.67B", logo:"https://ui-avatars.com/api/?name=ET&background=627eea&color=fff" },
@@ -39,7 +39,6 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const [alarmSymbols,    setAlarmSymbols]    = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState("Tümü");
-  const [selectedSort,     setSelectedSort]     = useState("gainers");
 
   const [selectedAssetForChart, setSelectedAssetForChart] = useState(null);
 
@@ -52,7 +51,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const [modalDropdownOpen, setModalDropdownOpen] = useState(false);
   const [isSidebarOpen,     setIsSidebarOpen]     = useState(true);
 
-  // 🚀 ANA ŞALTER KONTROLÜ (Ayarlardaki Fiyat Alarmları toggle'ı)
+  // ANA ŞALTER KONTROLÜ (Ayarlardaki Fiyat Alarmları toggle'ı)
   const isMasterPriceNotifOn = localStorage.getItem('notif_price') !== 'false';
 
   const handleLogout = () => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); };
@@ -175,13 +174,6 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
     return list;
   }, [markets, selectedCategory, searchQuery, favorites]);
 
-  const handleFavorite = async (symbol) => {
-    try {
-      if (favorites.includes(symbol)) { await removeFavorite(symbol); setFavorites(prev => prev.filter(i => i !== symbol)); }
-      else { await addFavorite(symbol); setFavorites(prev => [...prev, symbol]); }
-    } catch { setFavorites(prev => prev.includes(symbol) ? prev.filter(i => i !== symbol) : [...prev, symbol]); }
-  };
-  
   const handleAlarmClick = (symbol) => {
     const nameMap = {
       BTC: 'Bitcoin', ETH: 'Bitcoin', BNB: 'Bitcoin', SOL: 'Bitcoin', XRP: 'Bitcoin', DOGE: 'Bitcoin',
@@ -196,7 +188,6 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
     setModalCondition('above');
     setModalDropdownOpen(false);
     
-    // 🚀 ANA ŞALTER KAPALIYSA DİREKT FALSE OLARAK BAŞLATIYORUZ
     setModalNotifyEmail(isMasterPriceNotifOn);
     setModalNotifyBrowser(isMasterPriceNotifOn);
     
@@ -294,7 +285,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                 ))}
               </div>
 
-              {/* Tablo başlığı (Aynı kalıyor) */}
+              {/* Tablo başlığı */}
               <div className={`hidden lg:grid grid-cols-[2.4fr_1.2fr_1fr_1fr_1fr_0.8fr_1fr] gap-6 px-6 mb-4 text-sm ${t.textMuted}`}>
                 <div>Varlık</div><div>Fiyat</div><div>24s Değişim</div>
                 <div>Piyasa Değeri</div><div>Hacim (24s)</div><div>Grafik</div><div>İşlemler</div>
@@ -359,10 +350,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                         </div>
 
                         {/* İşlemler */}
-                        <div className="flex items-center gap-4 justify-between">
-                          <button onClick={() => handleFavorite(item.symbol)} className="hover:text-yellow-400 transition">
-                            <Star size={20} fill={favorites.includes(item.symbol) ? "#facc15" : "transparent"} className={t.textSecond} />
-                          </button>
+                        <div className="flex items-center gap-4 justify-end">
                           <button
                             onClick={() => handleAlarmClick(item.symbol)}
                             title={`${item.symbol} için alarm kur`}
@@ -408,7 +396,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
           dropdownOpen={modalDropdownOpen} setDropdownOpen={setModalDropdownOpen}
           onClose={() => { setShowAlarmModal(false); setModalTargetPrice(''); }}
           onCreate={handleModalCreate}
-          masterNotifEnabled={isMasterPriceNotifOn} // 🚀 SİHİRLİ PROP'UMUZU GÖNDERİYORUZ
+          masterNotifEnabled={isMasterPriceNotifOn}
         />
       )}
 
@@ -505,11 +493,9 @@ function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, 
           </div>
         </div>
 
-        {/* 🚀 KONTROLLÜ BİLDİRİM KANALLARI KISMI */}
         <div className="mb-6">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-3 uppercase tracking-wider`}>Bildirim Kanalları</label>
           
-          {/* Uyarı Kutucuğu (Eğer ayarlar kapalıysa görünür) */}
           {!masterNotifEnabled && (
             <div className="mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
               <Target size={14} className="text-red-400 mt-0.5 shrink-0" />
@@ -526,7 +512,6 @@ function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, 
               <label key={i} className={`flex items-center justify-between p-3 rounded-xl border ${t.cardBorder} ${t.deepCardBg} transition-colors ${masterNotifEnabled ? 'cursor-pointer hover:border-gray-500' : 'opacity-50 cursor-not-allowed'}`}>
                 <div className={`flex items-center gap-2.5 text-sm ${t.textSecond}`}><Icon size={16} className={ic} />{lbl}</div>
                 
-                {/* Ana şalter kapalıysa setter fonksiyonunu da engelliyoruz */}
                 <div onClick={() => { if(masterNotifEnabled) setter(!val) }} className={`w-10 h-5 rounded-full transition-all relative ${masterNotifEnabled ? 'cursor-pointer' : 'cursor-not-allowed'} ${val && masterNotifEnabled ? "bg-blue-600" : "bg-slate-600"}`}>
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${(val && masterNotifEnabled) ? "left-5" : "left-0.5"}`} />
                 </div>
