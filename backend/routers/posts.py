@@ -15,10 +15,11 @@ from fastapi import BackgroundTasks
 FINANCE_CATEGORY_MAP = {
     "bitcoin": ["bitcoin", "btc", "ethereum", "eth", "kripto", "crypto", "solana", "altcoin","dogecoin","xrp","cardano","ada","polkadot","dot","binancecoin","bnb","avalanche","avax","chainlink","link","litecoin","ltc"],
     "borsa": ["borsa", "bist", "bist100", "hisse", "halka arz", "spk", "temettü"],
-    "dolar": ["dolar", "usd", "yeşilçete", "fed"],
-    "euro": ["euro", "eur", "ecb"],
+    "dolar": ["dolar", "usd", "yeşilçete", "fed", "döviz", "dolar kuru", "usd try", "usd/try"],
+    "euro": ["euro", "eur", "ecb", "döviz", "euro kuru", "eur try", "eur/try"],
     "altın": ["altın", "gold", "ons", "gram altın", "xau"],
-    "gümüş": ["gümüş", "silver", "xag"]
+    "gümüş": ["gümüş", "silver", "xag"],
+    "sterlin": ["döviz", "sterlin", "gbp", "pound", "ingiltere parası"],
 }
 
 # --- YAPAY ZEKA KÜTÜPHANELERİ ---

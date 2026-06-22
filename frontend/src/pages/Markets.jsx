@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Search, Star, Bell, ChevronDown,
+  Search, Bell, ChevronDown,
   TrendingUp, TrendingDown, Target, Activity, Smartphone, Mail, X
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import AssetDetailModal from '../components/AssetDetailModal';
 import { useTheme, getThemeClasses } from "../context/ThemeContext";
-import { getMarkets, addFavorite, removeFavorite } from "../services/marketService";
+import { getMarkets } from "../services/marketService";
 import ChatBox from '../components/ChatBox';
 
 const categories = ["Tümü","Kripto","Döviz","Emtia","Borsa","Altın","Gümüş"];
@@ -30,10 +30,9 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const t = getThemeClasses(theme);
   const isDark = theme === "dark";
 
-  const [markets,         setMarkets]         = useState(FALLBACK_DATA); 
+  const [markets,         setMarkets]         = useState(FALLBACK_DATA);
   const [loading,         setLoading]         = useState(true);
   const [searchQuery,     setSearchQuery]     = useState("");
-  const [favorites,       setFavorites]       = useState([]);
   const [alarmSymbols,    setAlarmSymbols]    = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState("Tümü");
@@ -52,26 +51,6 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const isMasterPriceNotifOn = localStorage.getItem('notif_price') !== 'false';
 
   const handleLogout = () => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); };
-
-  useEffect(() => {
-    const fetchFavorites = async () => {
-      const token = localStorage.getItem("tradein_token");
-      if (!token) return;
-      try {
-        const response = await fetch("http://127.0.0.1:8000/favoriler", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const favList = data.map(f => typeof f === 'string' ? f : (f.symbol || f.asset));
-          setFavorites(favList);
-        }
-      } catch (err) {
-        console.error("Favoriler yüklenirken hata:", err);
-      }
-    };
-    fetchFavorites();
-  }, [isLoggedIn]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -179,27 +158,27 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
     return () => clearInterval(interval);
   }, []); 
 
+  const assetPrices = useMemo(() => ({
+    Bitcoin: markets.find(m => m.symbol === 'BTC')?.rawPrice,
+    Dolar:   markets.find(m => m.symbol === 'USDTRY')?.rawPrice,
+    Euro:    markets.find(m => m.symbol === 'EURTRY')?.rawPrice,
+    Sterlin: markets.find(m => m.symbol === 'GBPTRY')?.rawPrice,
+    Altın:   markets.find(m => m.symbol === 'XAU/TRY (Gr)')?.rawPrice,
+  }), [markets]);
+
+  const formatPrice = (val) => {
+    if (!val || isNaN(val)) return "";
+    return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(val);
+  };
+
   const filteredMarkets = useMemo(() => {
     let list = [...markets];
     if (selectedCategory !== "Tümü") list = list.filter(i => i.category === selectedCategory || i.name === selectedCategory);
     if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); list = list.filter(i => i.name.toLowerCase().includes(q) || i.symbol.toLowerCase().includes(q) || i.category.toLowerCase().includes(q)); }
     
-    list.sort((a, b) => {
-      const aFav = favorites.includes(a.symbol) ? 1 : 0;
-      const bFav = favorites.includes(b.symbol) ? 1 : 0;
-      return bFav - aFav; 
-    });
-
     return list;
-  }, [markets, selectedCategory, searchQuery, favorites]);
+  }, [markets, selectedCategory, searchQuery]);
 
-  const handleFavorite = async (symbol) => {
-    try {
-      if (favorites.includes(symbol)) { await removeFavorite(symbol); setFavorites(prev => prev.filter(i => i !== symbol)); }
-      else { await addFavorite(symbol); setFavorites(prev => [...prev, symbol]); }
-    } catch { setFavorites(prev => prev.includes(symbol) ? prev.filter(i => i !== symbol) : [...prev, symbol]); }
-  };
-  
   const handleAlarmClick = (symbol) => {
     const nameMap = {
       BTC: 'Bitcoin', ETH: 'Bitcoin', BNB: 'Bitcoin', SOL: 'Bitcoin', XRP: 'Bitcoin', DOGE: 'Bitcoin',
@@ -369,14 +348,11 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
 
                         {/* Grafik */}
                         <div className={`whitespace-nowrap ${item.change >= 0 ? "text-green-400" : "text-red-400"}`}>
-                          {item.change >= 0 ? "↗ ↗ ↗" : "↘ ↘ ↘"}
+                          {item.change >= 0 ? "↗︎ ↗︎ ↗︎" : "↘︎ ↘︎ ↘︎"}
                         </div>
 
                         {/* İşlemler */}
                         <div className="flex items-center gap-4 justify-between">
-                          <button onClick={() => handleFavorite(item.symbol)} className="hover:text-yellow-400 transition">
-                            <Star size={20} fill={favorites.includes(item.symbol) ? "#facc15" : "transparent"} className={t.textSecond} />
-                          </button>
                           <button
                             onClick={() => handleAlarmClick(item.symbol)}
                             title={`${item.symbol} için alarm kur`}
@@ -423,6 +399,8 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
           onClose={() => { setShowAlarmModal(false); setModalTargetPrice(''); }}
           onCreate={handleModalCreate}
           masterNotifEnabled={isMasterPriceNotifOn}
+          currentPrice={assetPrices[modalAsset.name]}
+          formatPrice={formatPrice}
         />
       )}
 
@@ -449,7 +427,7 @@ const ASSET_TYPES = [
 ];
 
 // Alarm Modal
-function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, dropdownOpen, setDropdownOpen, onClose, onCreate, masterNotifEnabled }) {
+function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, dropdownOpen, setDropdownOpen, onClose, onCreate, masterNotifEnabled, currentPrice, formatPrice }) {
   const valid = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
@@ -489,6 +467,7 @@ function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, 
               </div>
             )}
           </div>
+          {currentPrice && <p className={`text-xs ${t.textMuted} mt-1.5 px-1`}>Anlık: <span style={{ color: asset.color }} className="font-semibold">{formatPrice(currentPrice)} {asset.unit}</span></p>}
         </div>
 
         <div className="mb-4">
