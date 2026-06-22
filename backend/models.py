@@ -29,6 +29,8 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False) # 👈 Senin orijinal şifre alanın
+
+    is_active = Column(Boolean, default=True)
     
     name = Column(String(100), nullable=True) 
     bio = Column(Text, nullable=True)

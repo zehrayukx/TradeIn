@@ -5,6 +5,11 @@ from pydantic import BaseModel
 import database, models, auth
 from sqlalchemy import or_
 from utils.mail import send_reset_code_email
+import random
+from datetime import datetime, timedelta
+from fastapi import BackgroundTasks
+# Kendi mail gönderme fonksiyonunu import etmeyi unutma
+from utils.mail import send_verification_email
 
 router = APIRouter(tags=["Kimlik Doğrulama"])
 
@@ -14,36 +19,80 @@ class UserCreate(BaseModel):
     password: str
 
 @router.post("/kayit-ol")
-def kayit_ol(kullanici: UserCreate, db: Session = Depends(database.get_db)):
-    # 1. Kontrol: E-posta zaten kayıtlı mı?
+def kayit_ol(kullanici: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
     existing_user = db.query(models.User).filter(models.User.email == kullanici.email).first()
+    
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Bu e-posta adresi zaten kayıtlı."
-        )
+        if not getattr(existing_user, "is_active", True):
+            # Eski hesabı diriltme senaryosu (Burayı önceki gibi bırakıyoruz)
+            username_check = db.query(models.User).filter(models.User.username == kullanici.username, models.User.id != existing_user.id).first()
+            if username_check:
+                raise HTTPException(status_code=400, detail="Bu kullanıcı adı alınmış.")
+            
+            existing_user.is_active = True
+            existing_user.username = kullanici.username
+            existing_user.password_hash = auth.get_password_hash(kullanici.password)
+            db.commit()
+            return {"mesaj": "Eski hesabınız kurtarıldı!"}
+        else:
+            raise HTTPException(status_code=400, detail="Bu e-posta adresi zaten kayıtlı.")
 
-    # 2. Kontrol: Kullanıcı adı zaten alınmış mı?
     existing_username = db.query(models.User).filter(models.User.username == kullanici.username).first()
     if existing_username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Bu kullanıcı adı zaten alınmış."
-        )
+        raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten alınmış.")
 
-    # 3. Kayıt İşlemi
+    # 🚀 SİHİRLİ KISIM: 6 Haneli Kod Üret ve Hesabı Pasif Aç
+    dogrulama_kodu = str(random.randint(100000, 999999))
+    gecerlilik_suresi = datetime.utcnow() + timedelta(minutes=10) # 10 dakika geçerli
+
     hashed_pwd = auth.get_password_hash(kullanici.password)
     new_user = models.User(
         username=kullanici.username, 
         email=kullanici.email, 
-        password_hash=hashed_pwd 
+        password_hash=hashed_pwd,
+        is_active=False, # 👈 E-posta onaylanana kadar hesap kilitli!
+        reset_code=dogrulama_kodu, # Şifre sıfırlama alanını doğrulama için kullanıyoruz
+        reset_code_expire=gecerlilik_suresi
     )
     
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     
-    return {"mesaj": "Kayıt başarılı"}
+    # 🚀 E-postayı Arka Planda Gönder (Kullanıcı beklemesin)
+    # Zehra veya sen utils/mail.py içine bu fonksiyonu eklemelisiniz
+    background_tasks.add_task(send_verification_email, to_email=kullanici.email, code=dogrulama_kodu)
+    
+    return {"mesaj": "Kayıt alındı. Lütfen e-postanıza gelen 6 haneli kodu girin."}
+
+class VerifyEmail(BaseModel):
+    email: str
+    code: str
+
+@router.post("/dogrula")
+def eposta_dogrula(data: VerifyEmail, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.email == data.email).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+        
+    if getattr(user, "is_active", False):
+        return {"mesaj": "Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz."}
+        
+    # Kod doğru mu ve süresi dolmamış mı kontrolü
+    if user.reset_code != data.code:
+        raise HTTPException(status_code=400, detail="Hatalı doğrulama kodu girdiniz.")
+        
+    if user.reset_code_expire and user.reset_code_expire < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Bu kodun süresi dolmuş. Lütfen yeni kod isteyin.")
+        
+    # 🚀 ONAYLANDI: Hesabı Aktifleştir ve Kodları Temizle
+    user.is_active = True
+    user.reset_code = None
+    user.reset_code_expire = None
+    db.commit()
+    
+    return {"mesaj": "E-posta adresiniz başarıyla doğrulandı! Artık giriş yapabilirsiniz."}
 
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
@@ -53,6 +102,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             models.User.email == form_data.username
         )
     ).first()
+
+    if user and not getattr(user, "is_active", True):
+        raise HTTPException(status_code=403, detail="Lütfen önce e-posta adresinizi doğrulayın.")
     
     if not user or not auth.verify_password(form_data.password, user.password_hash):
         raise HTTPException(

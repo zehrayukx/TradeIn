@@ -35,6 +35,7 @@ def sifre_degistir(data: PasswordUpdate, db: Session = Depends(database.get_db),
 
 @router.delete("/hesabimi-sil")
 def hesabimi_sil(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    current_user.is_active = False
     db.delete(current_user)
     db.commit()
     return {"mesaj": "Silindi"}

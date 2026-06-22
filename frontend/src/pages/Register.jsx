@@ -8,7 +8,6 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-
   const [formData, setFormData] = useState({
     ad: "",
     soyad: "",
@@ -20,12 +19,17 @@ const Register = () => {
     telefon: ""
   });
 
+  // 🚀 DOĞRULAMA MODALI STATE'LERİ
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyError, setVerifyError] = useState("");
+  const [isVerifyLoading, setIsVerifyLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
@@ -44,18 +48,18 @@ const handleSubmit = async (e) => {
 
       console.log("🚀 Kayıt başarılı:", response.data);
       localStorage.setItem("tradein_username", formData.kullanici_adi.replace(/^@/, ''));
-      navigate("/login"); 
+      
+      // 🚀 YÖNLENDİRME İPTAL, POP-UP'I AÇ!
+      setShowVerifyModal(true); 
+
     } catch (err) {
       console.error("Kayıt hatası:", err);
-      
-      // Backend'den gelen hata detayını al
       const errorDetail = err.response?.data?.detail;
 
-      // Eğer hata "email" veya "kayıtlı" gibi ifadeler içeriyorsa özelleştir
       if (err.response?.status === 400 || err.response?.status === 409) {
-        if (typeof errorDetail === 'string' && (errorDetail.toLowerCase().includes("email") || errorDetail.toLowerCase().includes("registered"))) {
+        if (typeof errorDetail === 'string' && (errorDetail.toLowerCase().includes("email") || errorDetail.toLowerCase().includes("kayıtlı"))) {
           setError("Bu e-posta adresi zaten kayıtlı! Lütfen giriş yapmayı dene.");
-        } else if (typeof errorDetail === 'string' && errorDetail.toLowerCase().includes("username")) {
+        } else if (typeof errorDetail === 'string' && (errorDetail.toLowerCase().includes("username") || errorDetail.toLowerCase().includes("kullanıcı adı"))) {
           setError("Bu kullanıcı adı zaten alınmış.");
         } else {
           setError(errorDetail || "Kayıt olurken bir hata oluştu.");
@@ -68,8 +72,28 @@ const handleSubmit = async (e) => {
     }
   };
 
+  // 🚀 DOĞRULAMA İŞLEMİNİ YAPAN FONKSİYON
+  const handleVerify = async () => {
+    setIsVerifyLoading(true);
+    setVerifyError("");
+    try {
+      await axios.post("http://127.0.0.1:8000/dogrula", {
+        email: formData.email, // Formdan otomatik alıyoruz
+        code: verifyCode
+      });
+      
+      // Başarılı olursa login sayfasına uçur
+      setShowVerifyModal(false);
+      navigate("/login"); 
+    } catch (error) {
+      setVerifyError(error.response?.data?.detail || "Kod hatalı, lütfen tekrar dene.");
+    } finally {
+      setIsVerifyLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#0a0f1d] text-white flex flex-col">
+    <div className="min-h-screen bg-[#0a0f1d] text-white flex flex-col relative">
       <header className="p-6 flex justify-between items-center max-w-[1440px] w-full mx-auto">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-lg flex items-center justify-center text-sm font-black text-white shadow-lg shadow-blue-500/30">TI</div>
@@ -127,7 +151,7 @@ const handleSubmit = async (e) => {
                 </label>
               </div>
 
-              <button disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all mt-4">
+              <button disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all mt-4 disabled:bg-slate-800 disabled:text-slate-500">
                 {isLoading ? "Kaydediliyor..." : "Üye Ol"}
               </button>
             </form>
@@ -144,6 +168,44 @@ const handleSubmit = async (e) => {
           </div>
         </div>
       </main>
+
+      {/* 🚀 SİHİRLİ E-POSTA DOĞRULAMA POP-UP'I (MODAL) */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[32px] border border-blue-500/30 bg-[#161b22] shadow-2xl p-8 text-center">
+            
+            <div className="w-16 h-16 bg-blue-600/10 text-blue-500 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-600/10">
+              <Mail size={32} />
+            </div>
+            
+            <h2 className="text-2xl font-black text-white mb-2 tracking-tight">E-postanı Kontrol Et!</h2>
+            <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+              <span className="text-blue-400 font-bold">{formData.email}</span> adresine 6 haneli bir doğrulama kodu gönderdik. Lütfen kodu aşağıya gir.
+            </p>
+
+            <input 
+              type="text" 
+              maxLength="6"
+              placeholder="••••••"
+              value={verifyCode}
+              onChange={(e) => setVerifyCode(e.target.value.replace(/[^0-9]/g, ''))} // Sadece rakam kabul eder
+              className="w-full text-center tracking-[0.7em] text-3xl font-black bg-[#0a0f1d] border border-white/5 rounded-2xl px-4 py-4 text-white outline-none focus:border-blue-500 transition-colors mb-2 placeholder:text-slate-700"
+            />
+            
+            {verifyError && <p className="text-xs text-red-400 mb-4 font-bold">{verifyError}</p>}
+
+            <button 
+              onClick={handleVerify}
+              disabled={verifyCode.length !== 6 || isVerifyLoading}
+              className="w-full py-4 mt-6 rounded-xl text-sm font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none text-white shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98]"
+            >
+              {isVerifyLoading ? "Doğrulanıyor..." : "Kodu Doğrula"}
+            </button>
+            
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
