@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Bell, BellOff, Plus, Trash2, X, CheckCircle2, AlertTriangle,
   TrendingUp, TrendingDown, Clock, Mail, Smartphone, ChevronDown,
-  Activity, Target,Edit2
+  Activity, Target, Edit2
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
@@ -17,11 +17,9 @@ const assetTypes = [
   { name: "Euro",    icon: "€", color: "#60a5fa", unit: "TRY" },
   { name: "Sterlin", icon: "£", color: "#a78bfa", unit: "TRY" },
   { name: "Altın",   icon: "🟡", color: "#fbbf24", unit: "TRY/gr" },
-
   { name: "Borsa",   icon: "📈", color: "#34d399", unit: "BIST" },
 ];
 
-// Başlangıç referans fiyatları (CoinGecko'da olmayanlar için)
 const BASE_PRICES = { Bitcoin: 67000, Dolar: 32.45, Euro: 35.12, Sterlin: 41.22, Altın: 1985.5, Gümüş: 24.8, Borsa: 10842 };
 
 function Alarms({ isLoggedIn, setIsLoggedIn }) {
@@ -43,13 +41,15 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [notifyBrowser, setNotifyBrowser] = useState(true);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
-    const [editingAlarmId, setEditingAlarmId] = useState(null); // Düzenlenen alarmın ID'sini tutacak
+  const [editingAlarmId, setEditingAlarmId] = useState(null); 
   const [notifPermission, setNotifPermission] = useState(typeof Notification !== "undefined" ? Notification.permission : "default");
   
   const priceIntervalRef = useRef(null);
   const checkedAlarmsRef = useRef(new Set());
   
-  // 1. KULLANICI VERİLERİNİ ÇEK
+  // 🚀 ANA ŞALTER KONTROLÜ (Ayarlardaki Fiyat Alarmları toggle'ı)
+  const isMasterPriceNotifOn = localStorage.getItem('notif_price') !== 'false';
+  
   const fetchAlarmsData = useCallback(async () => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -72,21 +72,18 @@ function Alarms({ isLoggedIn, setIsLoggedIn }) {
     }
   }, [fetchAlarmsData, isLoggedIn]);
 
-  // 2. COINGECKO'DAN GERÇEK VERİLERİ ÇEK
-  // 2. GERÇEK ZAMANLI PİYASA VERİLERİNİ ÇEK (Kripto ve Döviz)
-useEffect(() => {
+  useEffect(() => {
     const fetchLivePrices = async () => {
       try {
         const [fxResponse, cryptoResponse, goldResponse] = await Promise.all([
           fetch("https://open.er-api.com/v6/latest/USD"),
           fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"),
-          // 🚀 GOLDAPI.IO ENTEGRASYONU
           fetch("https://www.goldapi.io/api/XAU/TRY", {
             headers: {
-              "x-access-token": "goldapi-20e7b14c71868c1919866bf5c7d57e7c-io", // Burayı güncellemeyi unutma!
+              "x-access-token": "goldapi-20e7b14c71868c1919866bf5c7d57e7c-io", 
               "Content-Type": "application/json"
             }
-          }).catch(() => null) // Altın API'si hata verirse diğerlerini bozmaması için
+          }).catch(() => null) 
         ]);
 
         const fxData = await fxResponse.json();
@@ -95,28 +92,16 @@ useEffect(() => {
 
         setPrices(prev => {
           const newPrices = { ...prev };
-
-          // Kripto Güncellemesi (Bitcoin)
-          if (cryptoData && cryptoData.bitcoin) {
-            newPrices.Bitcoin = cryptoData.bitcoin.usd;
-          }
-
-          // Döviz Güncellemesi (Dolar, Euro, Sterlin)
+          if (cryptoData && cryptoData.bitcoin) newPrices.Bitcoin = cryptoData.bitcoin.usd;
           if (fxData && fxData.rates) {
             const tryRate = fxData.rates.TRY;
             const eurRate = fxData.rates.EUR;
             const gbpRate = fxData.rates.GBP;
-
             newPrices.Dolar = tryRate;
             newPrices.Euro = tryRate / eurRate;
             newPrices.Sterlin = tryRate / gbpRate;
           }
-
-          // 🚀 Altın Güncellemesi (Gram Altın)
-          if (goldData && goldData.price) {
-            newPrices.Altın = goldData.price / 31.1034768;
-          }
-
+          if (goldData && goldData.price) newPrices.Altın = goldData.price / 31.1034768;
           return newPrices;
         });
       } catch (error) {
@@ -127,11 +112,8 @@ useEffect(() => {
     fetchLivePrices();
     const priceInterval = setInterval(fetchLivePrices, 60000);
     return () => clearInterval(priceInterval);
-  }, []); // Boş dizi sayesinde React render döngülerinden etkilenmez!
-  // 3. EKRANIN CANLI KALMASI İÇİN MİKRO DALGALANMA SİMÜLASYONU
+  }, []); 
 
-
-  // 4. ALARM TETİKLEYİCİ
   const triggerAlarm = useCallback(async (alarm, currentPrice) => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -160,7 +142,6 @@ useEffect(() => {
     }
   }, [fetchAlarmsData, notifPermission]);
 
-  // Fiyatları ve alarmları sürekli kontrol et
   useEffect(() => {
     alarms.filter(a => a.is_active).forEach(alarm => {
       if (checkedAlarmsRef.current.has(alarm.id)) return;
@@ -181,7 +162,7 @@ useEffect(() => {
     setNotifPermission(perm);
   };
 
-const handleCreateAlarm = async () => {
+  const handleCreateAlarm = async () => {
     if (!targetPrice || isNaN(Number(targetPrice)) || Number(targetPrice) <= 0) return;
     
     const token = localStorage.getItem("tradein_token");
@@ -197,12 +178,10 @@ const handleCreateAlarm = async () => {
       };
 
       if (editingAlarmId) {
-        // DÜZENLEME İŞLEMİ
         await axios.put(`http://127.0.0.1:8000/alarm-duzenle/${editingAlarmId}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        // YENİ ALARM İŞLEMİ
         await axios.post("http://127.0.0.1:8000/alarm-kur", payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -212,21 +191,24 @@ const handleCreateAlarm = async () => {
       setShowCreateModal(false); 
       setTargetPrice(""); 
       setCondition("above");
-      setEditingAlarmId(null); // İşlem bitince sıfırla
+      setEditingAlarmId(null);
     } catch (error) {
       console.error("Alarm işlemi başarısız:", error);
     }
   };
-const openEditModal = (alarm) => {
+
+  const openEditModal = (alarm) => {
     const asset = assetTypes.find(a => a.name === alarm.asset) || assetTypes[0];
     setSelectedAsset(asset);
     setTargetPrice(alarm.target_price);
     setCondition(alarm.condition);
-    setNotifyEmail(alarm.notify_email);
-    setNotifyBrowser(alarm.notify_browser);
-    setEditingAlarmId(alarm.id); // Düzenleme moduna geçir
+    // 🚀 Eğer ana şalter kapalıysa, mevcut alarmın ayarları ne olursa olsun düzenleme ekranında false başlatıyoruz
+    setNotifyEmail(isMasterPriceNotifOn ? alarm.notify_email : false);
+    setNotifyBrowser(isMasterPriceNotifOn ? alarm.notify_browser : false);
+    setEditingAlarmId(alarm.id);
     setShowCreateModal(true);
   };
+
   const handleToggleAlarm = async (alarmId) => {
     const token = localStorage.getItem("tradein_token");
     if (!token) return;
@@ -280,13 +262,14 @@ const openEditModal = (alarm) => {
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
+  
   function formatPrice(val) { 
-  if (val === undefined || val === null || isNaN(val)) return "";
-  return new Intl.NumberFormat("tr-TR", { 
-    minimumFractionDigits: 2, // Düz sayılarda bile en azından ,50 şeklinde göstersin
-    maximumFractionDigits: 4  // Veritabanındaki gibi 4 haneye kadar izin versin
-  }).format(val); 
-}
+    if (val === undefined || val === null || isNaN(val)) return "";
+    return new Intl.NumberFormat("tr-TR", { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 4  
+    }).format(val); 
+  }
   
   function relativeTime(iso) {
     if(!iso) return "";
@@ -332,8 +315,11 @@ const openEditModal = (alarm) => {
               <p className={`${t.textSecond} text-sm mt-1`}>Varlık fiyatlarına göre otomatik bildirim alın</p>
             </div>
             <button onClick={() => {
-                setEditingAlarmId(null); // Düzenleme modundan çık
+                setEditingAlarmId(null); 
                 setTargetPrice(""); 
+                // 🚀 Yeni alarm kurarken ana şaltere göre ayarla
+                setNotifyEmail(isMasterPriceNotifOn);
+                setNotifyBrowser(isMasterPriceNotifOn);
                 setShowCreateModal(true); 
               }}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg">
@@ -375,16 +361,21 @@ const openEditModal = (alarm) => {
           </div>
 
           {activeTab === "alarms" && (
-            alarms.length === 0 ? <EmptyAlarms t={t} onOpen={() => setShowCreateModal(true)} /> :
+            alarms.length === 0 ? <EmptyAlarms t={t} onOpen={() => {
+              setEditingAlarmId(null);
+              setTargetPrice("");
+              setNotifyEmail(isMasterPriceNotifOn);
+              setNotifyBrowser(isMasterPriceNotifOn);
+              setShowCreateModal(true);
+            }} /> :
             <div className="space-y-3">
               {alarms.map(alarm => {
                 const assetData = assetTypes.find(a => a.name === alarm.asset) || assetTypes[0];
-                // Alarms bileşeni içindeki .map() kısmı
                 return (
                   <AlarmCard key={alarm.id} t={t} alarm={alarm} assetData={assetData} currentPrice={prices[alarm.asset]}
                     onDelete={() => handleDeleteAlarm(alarm.id)}
                     onToggle={() => handleToggleAlarm(alarm.id)}
-                    onEdit={() => openEditModal(alarm)} // <-- Bu satırı ekle
+                    onEdit={() => openEditModal(alarm)} 
                     formatPrice={formatPrice} relativeTime={relativeTime} />
                 );
               })}
@@ -415,6 +406,7 @@ const openEditModal = (alarm) => {
           currentPrice={prices[selectedAsset.name]} formatPrice={formatPrice}
           onClose={() => setShowCreateModal(false)} onCreate={handleCreateAlarm} 
           editingAlarmId={editingAlarmId}
+          masterNotifEnabled={isMasterPriceNotifOn} // 🚀 SİHİRLİ PROP'U MODALA GÖNDERİYORUZ
           />
       )}
     </div>
@@ -498,7 +490,7 @@ function NotificationCard({ t, notif, assetData, onDelete, formatPrice, relative
   );
 }
 
-function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, assetDropdownOpen, setAssetDropdownOpen, currentPrice, formatPrice, onClose, onCreate, editingAlarmId }) {
+function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, assetDropdownOpen, setAssetDropdownOpen, currentPrice, formatPrice, onClose, onCreate, editingAlarmId, masterNotifEnabled }) {
   const valid = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
   
   return (
@@ -571,18 +563,30 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           </div>
         </div>
 
-        {/* Bildirim Kanalları */}
+        {/* 🚀 KONTROLLÜ BİLDİRİM KANALLARI KISMI */}
         <div className="mb-6">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-3 uppercase tracking-wider`}>Bildirim Kanalları</label>
+          
+          {/* Uyarı Kutucuğu (Eğer ayarlar kapalıysa görünür) */}
+          {!masterNotifEnabled && (
+            <div className="mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+              <Target size={14} className="text-red-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-red-400 font-medium leading-relaxed">
+                Ayarlar sayfasından ana fiyat bildirimlerini kapattığınız için bu kanallar şu an kilitlidir.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             {[[notifyBrowser, setNotifyBrowser, Smartphone, "text-blue-400", "Tarayıcı Bildirimi"],
               [notifyEmail, setNotifyEmail, Mail, "text-purple-400", "E-posta Bildirimi"]].map(([val, setter, Icon, iconColor, label], i) => (
-              <label key={i} className={`flex items-center justify-between p-3 rounded-xl border ${t.cardBorder} ${t.deepCardBg} cursor-pointer hover:border-gray-500 transition-colors`}>
+              <label key={i} className={`flex items-center justify-between p-3 rounded-xl border ${t.cardBorder} ${t.deepCardBg} transition-colors ${masterNotifEnabled ? 'cursor-pointer hover:border-gray-500' : 'opacity-50 cursor-not-allowed'}`}>
                 <div className={`flex items-center gap-2.5 text-sm ${t.textSecond}`}>
                   <Icon size={16} className={iconColor} /> {label}
                 </div>
-                <div onClick={() => setter(!val)} className={`w-10 h-5 rounded-full transition-all relative cursor-pointer ${val ? "bg-blue-600" : t.toggleOff}`}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${val ? "left-5" : "left-0.5"}`} />
+                {/* Ana şalter kapalıysa setter fonksiyonunu engelliyoruz */}
+                <div onClick={() => { if(masterNotifEnabled) setter(!val) }} className={`w-10 h-5 rounded-full transition-all relative ${masterNotifEnabled ? 'cursor-pointer' : 'cursor-not-allowed'} ${val && masterNotifEnabled ? "bg-blue-600" : "bg-slate-600"}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${(val && masterNotifEnabled) ? "left-5" : "left-0.5"}`} />
                 </div>
               </label>
             ))}

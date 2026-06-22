@@ -32,7 +32,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const t = getThemeClasses(theme);
   const isDark = theme === "dark";
 
-  const [markets,         setMarkets]         = useState(FALLBACK_DATA); // Başlangıç verisi 10'lu set
+  const [markets,         setMarkets]         = useState(FALLBACK_DATA); 
   const [loading,         setLoading]         = useState(true);
   const [searchQuery,     setSearchQuery]     = useState("");
   const [favorites,       setFavorites]       = useState([]);
@@ -41,10 +41,8 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const [selectedCategory, setSelectedCategory] = useState("Tümü");
   const [selectedSort,     setSelectedSort]     = useState("gainers");
 
-  // Grafik Modal state
   const [selectedAssetForChart, setSelectedAssetForChart] = useState(null);
 
-  // Alarm Modal state
   const [showAlarmModal,    setShowAlarmModal]    = useState(false);
   const [modalAsset,        setModalAsset]        = useState(ASSET_TYPES[0]);
   const [modalTargetPrice,  setModalTargetPrice]  = useState('');
@@ -54,29 +52,48 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const [modalDropdownOpen, setModalDropdownOpen] = useState(false);
   const [isSidebarOpen,     setIsSidebarOpen]     = useState(true);
 
+  // 🚀 ANA ŞALTER KONTROLÜ (Ayarlardaki Fiyat Alarmları toggle'ı)
+  const isMasterPriceNotifOn = localStorage.getItem('notif_price') !== 'false';
+
   const handleLogout = () => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); };
 
-  // 🚀 JÜRİYİ MEST EDECEK CANLI 10'LU PİYASA VERİ ÇEKİMİ
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      const token = localStorage.getItem("tradein_token");
+      if (!token) return;
+      try {
+        const response = await fetch("http://127.0.0.1:8000/favoriler", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const favList = data.map(f => typeof f === 'string' ? f : (f.symbol || f.asset));
+          setFavorites(favList);
+        }
+      } catch (err) {
+        console.error("Favoriler yüklenirken hata:", err);
+      }
+    };
+    fetchFavorites();
+  }, [isLoggedIn]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // getMarkets backend servisini sunumda risk almamak için şimdilik devre dışı bırakıyoruz, direkt canlı API'lere odaklanıyoruz.
         let combinedMarkets = [...FALLBACK_DATA];
 
         const [fxResponse, cryptoResponse, goldResponse] = await Promise.allSettled([
           fetch("https://open.er-api.com/v6/latest/USD"),
           fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"),
-          // 🚀 GOLDAPI.IO ENTEGRASYONU
           fetch("https://www.goldapi.io/api/XAU/TRY", {
             headers: {
-              "x-access-token": "SENIN_GOLDAPI_ANAHTARIN", // API key'ini buraya yapıştır!
+              "x-access-token": "SENIN_GOLDAPI_ANAHTARIN", 
               "Content-Type": "application/json"
             }
           })
         ]);
 
-        // 1. DÖVİZ GÜNCELLEMELERİ (USD/TRY, EUR/TRY, GBP/TRY)
         if (fxResponse.status === "fulfilled") {
           try {
             const fxData = await fxResponse.value.json();
@@ -88,12 +105,10 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                 combinedMarkets[usdIndex].tryPrice = `₺${usdTryRate.toFixed(4)}`;
                 combinedMarkets[usdIndex].rawPrice = usdTryRate;
               }
-              // EUR ve GBP güncellemeleri de buraya eklenebilir.
             }
           } catch (e) { console.error("Döviz JSON hatası:", e); }
         }
 
-        // 2. KRİPTO GÜNCELLEMELERİ (BTC, ETH, BNB, SOL, XRP, DOGE)
         if (cryptoResponse.status === "fulfilled") {
           try {
             const cryptoData = await cryptoResponse.value.json();
@@ -118,7 +133,6 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
           } catch (e) { console.error("Kripto JSON hatası:", e); }
         }
 
-        // 3. 🚀 CANLI ALTIN/TL VERİSİ (GRAM ALTIN HESAPLAMASI)
         if (goldResponse.status === "fulfilled") {
           try {
             const goldData = await goldResponse.value.json();
@@ -145,15 +159,21 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
     fetchData();
     const interval = setInterval(fetchData, 60000); 
     return () => clearInterval(interval);
-  }, []); // Bağımlılıkları temizledik, sunumda kategori veya arama filtrelemesi canlılığı bozmayacak
+  }, []); 
 
   const filteredMarkets = useMemo(() => {
     let list = [...markets];
     if (selectedCategory !== "Tümü") list = list.filter(i => i.category === selectedCategory || i.name === selectedCategory);
     if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); list = list.filter(i => i.name.toLowerCase().includes(q) || i.symbol.toLowerCase().includes(q) || i.category.toLowerCase().includes(q)); }
-    // Sıralama filtrelemesi (gainers/losers) backend eklenmediği için sunumda fallback veri setini kullanacak
+    
+    list.sort((a, b) => {
+      const aFav = favorites.includes(a.symbol) ? 1 : 0;
+      const bFav = favorites.includes(b.symbol) ? 1 : 0;
+      return bFav - aFav; 
+    });
+
     return list;
-  }, [markets, selectedCategory, searchQuery]);
+  }, [markets, selectedCategory, searchQuery, favorites]);
 
   const handleFavorite = async (symbol) => {
     try {
@@ -170,19 +190,23 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
     };
     const assetName = nameMap[symbol] || 'Bitcoin';
     const asset = ASSET_TYPES.find(a => a.name === assetName) || ASSET_TYPES[0];
+    
     setModalAsset(asset);
     setModalTargetPrice('');
     setModalCondition('above');
     setModalDropdownOpen(false);
+    
+    // 🚀 ANA ŞALTER KAPALIYSA DİREKT FALSE OLARAK BAŞLATIYORUZ
+    setModalNotifyEmail(isMasterPriceNotifOn);
+    setModalNotifyBrowser(isMasterPriceNotifOn);
+    
     setAlarmSymbols(prev => prev.includes(symbol) ? prev : [...prev, symbol]);
     setShowAlarmModal(true);
   };
 
-const handleModalCreate = async () => {
-    // 1. Validasyon Kontrolü
+  const handleModalCreate = async () => {
     if (!modalTargetPrice || isNaN(Number(modalTargetPrice)) || Number(modalTargetPrice) <= 0) return;
 
-    // 2. Alarm Objemi Hazırla
     const newAlarmData = {
       asset: modalAsset.name,
       target_price: Number(modalTargetPrice),
@@ -194,9 +218,8 @@ const handleModalCreate = async () => {
     try {
       const token = localStorage.getItem('tradein_token');
 
-      // 🚀 3. BACKEND'E GÖNDER (Alarmlar sayfasının veritabanından okuyabilmesi için)
       if (token) {
-        await fetch('http://127.0.0.1:8000/alarm-kur', {// Kendi backend endpoint'ine göre adını uyarla
+        await fetch('http://127.0.0.1:8000/alarm-kur', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -206,7 +229,6 @@ const handleModalCreate = async () => {
         });
       }
 
-      // 4. LOCALSTORAGE YEDEĞİ (Eğer Alarmlar sayfan hala lokalden çalışıyorsa sorun çıkmasın)
       const localAlarm = {
         ...newAlarmData,
         id: Date.now(),
@@ -216,14 +238,12 @@ const handleModalCreate = async () => {
       const existing = JSON.parse(localStorage.getItem('tradein_alarms') || '[]');
       localStorage.setItem('tradein_alarms', JSON.stringify([localAlarm, ...existing]));
 
-      // 5. KULLANICIYA GERİ BİLDİRİM (Sunumda jüriye çalıştı hissiyatını vermek için kritik)
       alert(`✅ ${modalAsset.name} için hedeflenen ${modalTargetPrice} ${modalAsset.unit} fiyatına alarm başarıyla kuruldu!`);
 
     } catch (error) {
       console.error("Alarm kayıt hatası:", error);
       alert("❌ Alarm kurulurken bir hata oluştu.");
     } finally {
-      // 6. Modalı Kapat ve Formu Temizle
       setShowAlarmModal(false);
       setModalTargetPrice('');
     }
@@ -280,7 +300,7 @@ const handleModalCreate = async () => {
                 <div>Piyasa Değeri</div><div>Hacim (24s)</div><div>Grafik</div><div>İşlemler</div>
               </div>
 
-              {/* Satırlar (Zehra'nın efsane mum grafiği entegrasyonuyla) */}
+              {/* Satırlar */}
               {loading ? (
                 <div className="space-y-4">
                   {[1,2,3,4].map(i => (
@@ -333,7 +353,7 @@ const handleModalCreate = async () => {
                         {/* Hacim */}
                         <div className={`${t.textSecond} whitespace-nowrap`}>{item.volume}</div>
 
-                        {/* Grafik (Statik simülasyon) */}
+                        {/* Grafik */}
                         <div className={`whitespace-nowrap ${item.change >= 0 ? "text-green-400" : "text-red-400"}`}>
                           {item.change >= 0 ? "↗ ↗ ↗" : "↘ ↘ ↘"}
                         </div>
@@ -350,13 +370,11 @@ const handleModalCreate = async () => {
                             <Bell size={20} fill={alarmSymbols.includes(item.symbol) ? "#60a5fa" : "transparent"} />
                           </button>
                           
-                          {/* 🚀 JÜRİYİ MEST EDECEK GRAFİK DETAY BUTONU */}
                           <button 
                             onClick={() => setSelectedAssetForChart({
                               name: item.name || item.symbol,
                               unit: item.category === "Kripto" ? "USD" : "TRY", 
                               icon: item.symbol === 'XAU/TRY (Gr)' ? '🟡' : (item.category === "Döviz" ? "💵" : "📊"), 
-                              // Fiyatı kendi rawPrice'ımızdan veya formatlı fiyattan ayıklıyoruz
                               current_price: item.rawPrice || parseFloat(item.price.replace(/[^0-9.-]+/g,"")) || 100 
                             })}
                             className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition whitespace-nowrap cursor-pointer shadow-lg"
@@ -371,11 +389,9 @@ const handleModalCreate = async () => {
               )}
             </section>
 
-{/* TradeIn'e giriş yapmış kişinin adını alıyoruz. Yoksa Misafir yazar. */}
-<div className="hidden xl:block shrink-0 sticky top-6 h-fit">
-    <ChatBox currentUsername={localStorage.getItem('tradein_username') || "Misafir"} />
-</div>
-
+            <div className="hidden xl:block shrink-0 sticky top-6 h-fit">
+                <ChatBox currentUsername={localStorage.getItem('tradein_username') || "Misafir"} />
+            </div>
 
           </div>
         </main>
@@ -392,16 +408,15 @@ const handleModalCreate = async () => {
           dropdownOpen={modalDropdownOpen} setDropdownOpen={setModalDropdownOpen}
           onClose={() => { setShowAlarmModal(false); setModalTargetPrice(''); }}
           onCreate={handleModalCreate}
+          masterNotifEnabled={isMasterPriceNotifOn} // 🚀 SİHİRLİ PROP'UMUZU GÖNDERİYORUZ
         />
       )}
 
-      {/* 🚀 JÜRİYİ MEST EDECEK TEMAYA DUYARLI GRAFİK DETAY POPUP */}
       {selectedAssetForChart && (
         <AssetDetailModal 
           asset={selectedAssetForChart} 
           currentPrice={selectedAssetForChart.current_price} 
           onClose={() => setSelectedAssetForChart(null)} 
-          // 🚀 Grafiğin temasını buraya gönderiyoruz (Dark/Light)
           theme={theme} 
         />
       )}
@@ -419,8 +434,8 @@ const ASSET_TYPES = [
   { name: "Borsa",   icon: "📈", color: "#34d399", unit: "BIST"   },
 ];
 
-// Alarm Modal (Düzeltildi)
-function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, dropdownOpen, setDropdownOpen, onClose, onCreate, }) {
+// Alarm Modal
+function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, dropdownOpen, setDropdownOpen, onClose, onCreate, masterNotifEnabled }) {
   const valid = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
@@ -490,15 +505,30 @@ function AlarmModalInMarkets({ t, asset, setAsset, targetPrice, setTargetPrice, 
           </div>
         </div>
 
-<div className="mb-6">
+        {/* 🚀 KONTROLLÜ BİLDİRİM KANALLARI KISMI */}
+        <div className="mb-6">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-3 uppercase tracking-wider`}>Bildirim Kanalları</label>
+          
+          {/* Uyarı Kutucuğu (Eğer ayarlar kapalıysa görünür) */}
+          {!masterNotifEnabled && (
+            <div className="mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+              <Target size={14} className="text-red-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-red-400 font-medium leading-relaxed">
+                Ayarlar sayfasından ana fiyat bildirimlerini kapattığınız için bu kanallar şu an kilitlidir.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             {[[notifyBrowser,setNotifyBrowser,Smartphone,"text-blue-400","Tarayıcı Bildirimi"],
               [notifyEmail,setNotifyEmail,Mail,"text-purple-400","E-posta Bildirimi"]].map(([val,setter,Icon,ic,lbl],i) => (
-              <label key={i} className={`flex items-center justify-between p-3 rounded-xl border ${t.cardBorder} ${t.deepCardBg} cursor-pointer hover:border-gray-500 transition-colors`}>
+              
+              <label key={i} className={`flex items-center justify-between p-3 rounded-xl border ${t.cardBorder} ${t.deepCardBg} transition-colors ${masterNotifEnabled ? 'cursor-pointer hover:border-gray-500' : 'opacity-50 cursor-not-allowed'}`}>
                 <div className={`flex items-center gap-2.5 text-sm ${t.textSecond}`}><Icon size={16} className={ic} />{lbl}</div>
-                <div onClick={() => setter(!val)} className={`w-10 h-5 rounded-full transition-all relative cursor-pointer ${val ? "bg-blue-600" : "bg-slate-600"}`}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${val ? "left-5" : "left-0.5"}`} />
+                
+                {/* Ana şalter kapalıysa setter fonksiyonunu da engelliyoruz */}
+                <div onClick={() => { if(masterNotifEnabled) setter(!val) }} className={`w-10 h-5 rounded-full transition-all relative ${masterNotifEnabled ? 'cursor-pointer' : 'cursor-not-allowed'} ${val && masterNotifEnabled ? "bg-blue-600" : "bg-slate-600"}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${(val && masterNotifEnabled) ? "left-5" : "left-0.5"}`} />
                 </div>
               </label>
             ))}
