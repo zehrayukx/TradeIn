@@ -8,6 +8,7 @@ import Sidebar from "../components/Sidebar";
 import AssetDetailModal from '../components/AssetDetailModal';
 import { useTheme, getThemeClasses } from "../context/ThemeContext";
 import { getMarkets, addFavorite, removeFavorite } from "../services/marketService";
+import ChatBox from '../components/ChatBox';
 
 // 1. Kategoriler aynı kalıyor
 const categories = ["Tümü","Kripto","Döviz","Emtia","Borsa","Altın","Gümüş"];
@@ -369,6 +370,13 @@ const handleModalCreate = async () => {
                 </div>
               )}
             </section>
+
+{/* TradeIn'e giriş yapmış kişinin adını alıyoruz. Yoksa Misafir yazar. */}
+<div className="hidden xl:block shrink-0 sticky top-6 h-fit">
+    <ChatBox currentUsername={localStorage.getItem('tradein_username') || "Misafir"} />
+</div>
+
+
           </div>
         </main>
       </div>
