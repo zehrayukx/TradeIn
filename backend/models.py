@@ -46,6 +46,10 @@ class User(Base):
     likes = relationship("Like", back_populates="user", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
 
+    # (Diğer kolonlarının altına ekle)
+    notif_price = Column(Boolean, default=True)   # Fiyat bildirimleri (Varsayılan: Açık)
+    notif_social = Column(Boolean, default=True)  # Sosyal bildirimler (Varsayılan: Açık)
+
 class Post(Base):
     __tablename__ = "posts"
 

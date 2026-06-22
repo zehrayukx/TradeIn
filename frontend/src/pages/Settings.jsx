@@ -136,6 +136,22 @@ const Settings = ({ isLoggedIn, setIsLoggedIn }) => {
 
   useEffect(() => { localStorage.setItem('notif_price', notifPrice); }, [notifPrice]);
   useEffect(() => { localStorage.setItem('notif_social', notifSocial); }, [notifSocial]);
+  /* ── Bildirim Ayarlarını Backend'e Gönder ── */
+  const handleNotifToggle = async (type, newValue) => {
+    // Arayüzü anında değiştir ki kullanıcı beklemesin
+    if (type === 'price') { setNotifPrice(newValue); localStorage.setItem('notif_price', newValue); }
+    if (type === 'social') { setNotifSocial(newValue); localStorage.setItem('notif_social', newValue); }
+
+    try {
+      const token = localStorage.getItem('tradein_token');
+      await axios.put('http://127.0.0.1:8000/bildirim-ayarlari', 
+        { ayar_tipi: type, deger: newValue },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (error) {
+      console.error("Bildirim ayarı kaydedilemedi:", error);
+    }
+  };
 
   /* ── Kullanıcı adı kaydet ── */
   const handleUsernameSave = async () => {
@@ -247,11 +263,11 @@ const Settings = ({ isLoggedIn, setIsLoggedIn }) => {
               <div className="space-y-3">
                 <SettingRow t={t} icon={Bell}
                   title="Fiyat Alarmları" subtitle="Alarm eşiği aşıldığında bildir">
-                  <Toggle t={t} checked={notifPrice} onChange={setNotifPrice} disabled={!isLoggedIn} />
+                  <Toggle t={t} checked={notifPrice} onChange={(val) => handleNotifToggle('price', val)} disabled={!isLoggedIn} />
                 </SettingRow>
                 <SettingRow t={t} icon={BellOff}
                   title="Sosyal Etkileşimler" subtitle="Beğeni ve yorum bildirimleri">
-                  <Toggle t={t} checked={notifSocial} onChange={setNotifSocial} disabled={!isLoggedIn} />
+                  <Toggle t={t} checked={notifSocial} onChange={(val) => handleNotifToggle('social', val)} disabled={!isLoggedIn} />
                 </SettingRow>
                 {!isLoggedIn && (
                   <div className="flex items-center gap-2 bg-blue-600/10 border border-blue-500/20 rounded-xl px-4 py-3 text-xs text-blue-400">

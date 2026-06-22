@@ -224,7 +224,7 @@ def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(databas
 @router.post("/post/{post_id}/begen")
 def post_begen(
     post_id: int, 
-    background_tasks: BackgroundTasks, # 2. Parametre olarak ekle
+    background_tasks: BackgroundTasks, 
     db: Session = Depends(database.get_db), 
     current_user: models.User = Depends(get_current_user)
 ):
@@ -241,35 +241,40 @@ def post_begen(
         db.add(new_like)
         db.commit()
         
-        # Bildirim SADECE başkasının gönderisini beğenirsek gitsin
         if post.user_id != current_user.id:
-            yeni_bildirim = models.Notification(
-                user_id=post.user_id,
-                actor_id=current_user.id,
-                type="like",
-                post_id=post.id
-            )
-            db.add(yeni_bildirim)
-            db.commit()
+            # 🚀 1. ÖNCE HEDEF KULLANICIYI BUL
             hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
-            if hedef_kullanici and hedef_kullanici.email:
-                # 3. E-POSTAYI ARKA PLANA GÖNDER!
-                background_tasks.add_task(
-                    send_social_notification_email,
-                    to_email=hedef_kullanici.email,
-                    actor_name=current_user.username,
-                    notification_type="like",
-                    post_preview=post.content[:40] + "..."
-                )
+            
+            # 🚀 2. SİHİRLİ ŞART: Şalteri (notif_social) açıksa bildirimi ve maili yolla!
+            if hedef_kullanici and hedef_kullanici.notif_social:
                 
-        # 🚀 DÜZELTME: Return işlemi if bloğundan bağımsız, her halükarda dönecek!
+                # Çan ikonuna bildirimi düşür
+                yeni_bildirim = models.Notification(
+                    user_id=post.user_id,
+                    actor_id=current_user.id,
+                    type="like",
+                    post_id=post.id
+                )
+                db.add(yeni_bildirim)
+                db.commit()
+                
+                # E-postayı arka planda gönder
+                if hedef_kullanici.email:
+                    background_tasks.add_task(
+                        send_social_notification_email,
+                        to_email=hedef_kullanici.email,
+                        actor_name=current_user.username,
+                        notification_type="like",
+                        post_preview=post.content[:40] + "..."
+                    )
+                
         return {"mesaj": "Post beğenildi", "begenildi": True}
 
 @router.post("/post/{post_id}/yorum")
 async def yorum_yap(
     post_id: int, 
     yorum: CommentCreate, 
-    background_tasks: BackgroundTasks, # 🚀 1. BackgroundTasks Eklendi
+    background_tasks: BackgroundTasks,
     db: Session = Depends(database.get_db), 
     current_user: models.User = Depends(get_current_user)
 ):
@@ -287,32 +292,37 @@ async def yorum_yap(
     new_comment = models.Comment(post_id=post_id, user_id=current_user.id, content=yorum.content)
     db.add(new_comment)
     db.commit()
+    
     if post.user_id != current_user.id: # Kendi postuna yorum yapınca bildirim gitmesin
-        yeni_bildirim = models.Notification(
-            user_id=post.user_id, # Postun asıl sahibi (Hedef)
-            actor_id=current_user.id, # Yorumu yapan (Aktör)
-            type="comment",
-            post_id=post.id,
-            comment_id=new_comment.id
-        )
-        db.add(yeni_bildirim)
-        db.commit()
-        
+        # 🚀 1. ÖNCE HEDEF KULLANICIYI BUL (Postun Sahibi)
         hedef_kullanici = db.query(models.User).filter(models.User.id == post.user_id).first()
-        if hedef_kullanici and hedef_kullanici.email:
-            # 🚀 2. E-POSTA İŞLEMİ ARKA PLANA ATILDI! (Sitenin donmasını engeller)
-            background_tasks.add_task(
-                send_social_notification_email,
-                to_email=hedef_kullanici.email,
-                actor_name=current_user.username,
-                notification_type="comment",
-                post_preview=post.content[:40] + "...",
-                comment_preview=new_comment.content
-            )
+        
+        # 🚀 2. SİHİRLİ ŞART: Hedef kullanıcı varsa VE şalteri (notif_social) AÇIKSA işlem yap!
+        if hedef_kullanici and hedef_kullanici.notif_social:
             
-    # 🚀 3. KRİTİK DÜZELTME: Return işlemi if bloğundan çıkarıldı!
+            # Bildirimi çan ikonuna (veritabanına) düşür
+            yeni_bildirim = models.Notification(
+                user_id=post.user_id,
+                actor_id=current_user.id,
+                type="comment",
+                post_id=post.id,
+                comment_id=new_comment.id
+            )
+            db.add(yeni_bildirim)
+            db.commit()
+            
+            # E-postayı arka planda gönder
+            if hedef_kullanici.email:
+                background_tasks.add_task(
+                    send_social_notification_email,
+                    to_email=hedef_kullanici.email,
+                    actor_name=current_user.username,
+                    notification_type="comment",
+                    post_preview=post.content[:40] + "...",
+                    comment_preview=new_comment.content
+                )
+            
     return {"mesaj": "Yorum eklendi"}
-
 
 # 🚀 2. Yorum Güncelleme Endpoint'i
 @router.put("/post/yorum-guncelle/{yorum_id}")

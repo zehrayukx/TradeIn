@@ -13,6 +13,10 @@ class PasswordUpdate(BaseModel):
     old_password: str
     new_password: str
 
+class NotifSettingsUpdate(BaseModel):
+    ayar_tipi: str  # "price" veya "social" olacak
+    deger: bool     # True (Açık) veya False (Kapalı) olacak
+
 @router.put("/kullanici-adi-degistir")
 def kullanici_adi_degistir(data: UsernameUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     mevcut_kullanici = db.query(models.User).filter(models.User.username == data.new_username).first()
@@ -34,3 +38,15 @@ def hesabimi_sil(db: Session = Depends(database.get_db), current_user: models.Us
     db.delete(current_user)
     db.commit()
     return {"mesaj": "Silindi"}
+
+@router.put("/bildirim-ayarlari")
+def bildirim_ayarlari(data: NotifSettingsUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    if data.ayar_tipi == "price":
+        current_user.notif_price = data.deger
+    elif data.ayar_tipi == "social":
+        current_user.notif_social = data.deger
+    else:
+        raise HTTPException(status_code=400, detail="Geçersiz ayar tipi")
+        
+    db.commit()
+    return {"mesaj": "Bildirim ayarı başarıyla güncellendi", "ayar": data.ayar_tipi, "yeni_durum": data.deger}
