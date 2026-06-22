@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Search, Bell, ChevronDown,
+  Search, Star, Bell, ChevronDown,
   TrendingUp, TrendingDown, Target, Activity, Smartphone, Mail, X
 } from "lucide-react";
 import Navbar from "../components/Navbar";
@@ -10,10 +10,8 @@ import { useTheme, getThemeClasses } from "../context/ThemeContext";
 import { getMarkets, addFavorite, removeFavorite } from "../services/marketService";
 import ChatBox from '../components/ChatBox';
 
-// 1. Kategoriler
 const categories = ["Tümü","Kripto","Döviz","Emtia","Borsa","Altın","Gümüş"];
 
-// 2. FALLBACK Veri Seti
 const FALLBACK_DATA = [
   { name:"Bitcoin",  symbol:"BTC", category:"Kripto", price:"$68,500.00", tryPrice:"₺2,212,550.00", change:1.20, marketCap:"$1.31T", volume:"$28.45B", logo:"https://ui-avatars.com/api/?name=BT&background=f7931a&color=fff" },
   { name:"Ethereum", symbol:"ETH", category:"Kripto", price:"$3,542.18", tryPrice:"₺114,423.68", change:-0.45, marketCap:"$425.67B", volume:"$15.67B", logo:"https://ui-avatars.com/api/?name=ET&background=627eea&color=fff" },
@@ -51,7 +49,6 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const [modalDropdownOpen, setModalDropdownOpen] = useState(false);
   const [isSidebarOpen,     setIsSidebarOpen]     = useState(true);
 
-  // ANA ŞALTER KONTROLÜ (Ayarlardaki Fiyat Alarmları toggle'ı)
   const isMasterPriceNotifOn = localStorage.getItem('notif_price') !== 'false';
 
   const handleLogout = () => { localStorage.removeItem("tradein_token"); setIsLoggedIn(false); };
@@ -87,22 +84,44 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
           fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"),
           fetch("https://www.goldapi.io/api/XAU/TRY", {
             headers: {
-              "x-access-token": "SENIN_GOLDAPI_ANAHTARIN", 
+              "x-access-token": "goldapi-20e7b14c71868c1919866bf5c7d57e7c-io", 
               "Content-Type": "application/json"
             }
-          })
+          }).catch(() => null)
         ]);
 
         if (fxResponse.status === "fulfilled") {
           try {
             const fxData = await fxResponse.value.json();
             if (fxData && fxData.rates) {
-              const usdTryRate = fxData.rates.TRY;
+              const tryRate = fxData.rates.TRY;
+              const eurRate = fxData.rates.EUR;
+              const gbpRate = fxData.rates.GBP;
+
+              // DOLAR GÜNCELLEMESİ
               const usdIndex = combinedMarkets.findIndex(m => m.symbol === "USDTRY");
               if (usdIndex !== -1) {
-                combinedMarkets[usdIndex].price = usdTryRate.toFixed(4);
-                combinedMarkets[usdIndex].tryPrice = `₺${usdTryRate.toFixed(4)}`;
-                combinedMarkets[usdIndex].rawPrice = usdTryRate;
+                combinedMarkets[usdIndex].price = tryRate.toFixed(4);
+                combinedMarkets[usdIndex].tryPrice = `₺${tryRate.toFixed(4)}`;
+                combinedMarkets[usdIndex].rawPrice = tryRate;
+              }
+
+              // EURO GÜNCELLEMESİ
+              const eurIndex = combinedMarkets.findIndex(m => m.symbol === "EURTRY");
+              if (eurIndex !== -1 && eurRate) {
+                const liveEur = tryRate / eurRate;
+                combinedMarkets[eurIndex].price = liveEur.toFixed(4);
+                combinedMarkets[eurIndex].tryPrice = `₺${liveEur.toFixed(4)}`;
+                combinedMarkets[eurIndex].rawPrice = liveEur;
+              }
+
+              // STERLİN GÜNCELLEMESİ
+              const gbpIndex = combinedMarkets.findIndex(m => m.symbol === "GBPTRY");
+              if (gbpIndex !== -1 && gbpRate) {
+                const liveGbp = tryRate / gbpRate;
+                combinedMarkets[gbpIndex].price = liveGbp.toFixed(4);
+                combinedMarkets[gbpIndex].tryPrice = `₺${liveGbp.toFixed(4)}`;
+                combinedMarkets[gbpIndex].rawPrice = liveGbp;
               }
             }
           } catch (e) { console.error("Döviz JSON hatası:", e); }
@@ -132,7 +151,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
           } catch (e) { console.error("Kripto JSON hatası:", e); }
         }
 
-        if (goldResponse.status === "fulfilled") {
+        if (goldResponse.status === "fulfilled" && goldResponse.value) {
           try {
             const goldData = await goldResponse.value.json();
             if (goldData && goldData.price) {
@@ -174,6 +193,13 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
     return list;
   }, [markets, selectedCategory, searchQuery, favorites]);
 
+  const handleFavorite = async (symbol) => {
+    try {
+      if (favorites.includes(symbol)) { await removeFavorite(symbol); setFavorites(prev => prev.filter(i => i !== symbol)); }
+      else { await addFavorite(symbol); setFavorites(prev => [...prev, symbol]); }
+    } catch { setFavorites(prev => prev.includes(symbol) ? prev.filter(i => i !== symbol) : [...prev, symbol]); }
+  };
+  
   const handleAlarmClick = (symbol) => {
     const nameMap = {
       BTC: 'Bitcoin', ETH: 'Bitcoin', BNB: 'Bitcoin', SOL: 'Bitcoin', XRP: 'Bitcoin', DOGE: 'Bitcoin',
@@ -320,10 +346,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                             <div className={`flex flex-wrap items-center gap-2 text-sm ${t.textSecond}`}>
                               <span>{item.symbol}</span><span>{item.category}</span>
                             </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              <span className="text-green-400 text-xs bg-green-500/10 px-2 py-1 rounded-lg">Trend</span>
-                              <span className="text-yellow-400 text-xs bg-yellow-500/10 px-2 py-1 rounded-lg">Risk: Orta</span>
-                            </div>
+                            {/* 🚀 TREND VE RİSK YAZILARI BURADAN KALDIRILDI! */}
                           </div>
                         </div>
 
@@ -350,7 +373,10 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
                         </div>
 
                         {/* İşlemler */}
-                        <div className="flex items-center gap-4 justify-end">
+                        <div className="flex items-center gap-4 justify-between">
+                          <button onClick={() => handleFavorite(item.symbol)} className="hover:text-yellow-400 transition">
+                            <Star size={20} fill={favorites.includes(item.symbol) ? "#facc15" : "transparent"} className={t.textSecond} />
+                          </button>
                           <button
                             onClick={() => handleAlarmClick(item.symbol)}
                             title={`${item.symbol} için alarm kur`}
