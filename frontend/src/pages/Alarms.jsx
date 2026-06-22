@@ -9,6 +9,7 @@ import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import { useTheme, getThemeClasses } from "../context/ThemeContext";
 import axios from "axios";
+import { BellPlus } from 'lucide-react';
 
 const assetTypes = [
   { name: "Bitcoin", icon: "₿", color: "#f7931a", unit: "USD" },
@@ -499,19 +500,25 @@ function NotificationCard({ t, notif, assetData, onDelete, formatPrice, relative
 
 function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targetPrice, setTargetPrice, condition, setCondition, notifyEmail, setNotifyEmail, notifyBrowser, setNotifyBrowser, assetDropdownOpen, setAssetDropdownOpen, currentPrice, formatPrice, onClose, onCreate, editingAlarmId }) {
   const valid = targetPrice && !isNaN(Number(targetPrice)) && Number(targetPrice) > 0;
+  
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className={`w-full max-w-md rounded-2xl border border-blue-500/30 ${t.modalBg} shadow-2xl p-6 transition-colors duration-300`}>
+        
+        {/* Başlık */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Target size={20} className="text-blue-400" />
             <h2 className={`text-lg font-bold ${t.textPrimary}`}>
-  {editingAlarmId ? "Alarmı Düzenle" : "Yeni Alarm Kur"}
-</h2>
+              {editingAlarmId ? "Alarmı Düzenle" : "Yeni Alarm Kur"}
+            </h2>
           </div>
-          <button onClick={onClose} className={`p-1.5 ${t.textMuted} hover:${t.textPrimary} transition-colors`}><X size={18} /></button>
+          <button onClick={onClose} className={`p-1.5 ${t.textMuted} hover:${t.textPrimary} transition-colors`}>
+            <X size={18} />
+          </button>
         </div>
 
+        {/* Varlık Seçimi */}
         <div className="mb-4">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Varlık</label>
           <div className="relative">
@@ -540,6 +547,7 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           {currentPrice && <p className={`text-xs ${t.textMuted} mt-1.5 px-1`}>Anlık: <span style={{ color: selectedAsset.color }} className="font-semibold">{formatPrice(currentPrice)} {selectedAsset.unit}</span></p>}
         </div>
 
+        {/* Koşul Seçimi */}
         <div className="mb-4">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Koşul</label>
           <div className="grid grid-cols-2 gap-2">
@@ -552,6 +560,7 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           </div>
         </div>
 
+        {/* Hedef Fiyat Girişi */}
         <div className="mb-5">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-2 uppercase tracking-wider`}>Hedef Fiyat ({selectedAsset.unit})</label>
           <div className={`flex items-center rounded-xl border ${t.inputBorder} ${t.inputBg} px-4 focus-within:border-blue-500 transition-colors`}>
@@ -562,6 +571,7 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           </div>
         </div>
 
+        {/* Bildirim Kanalları */}
         <div className="mb-6">
           <label className={`block text-xs font-semibold ${t.textMuted} mb-3 uppercase tracking-wider`}>Bildirim Kanalları</label>
           <div className="space-y-2">
@@ -579,12 +589,30 @@ function CreateAlarmModal({ t, assetTypes, selectedAsset, setSelectedAsset, targ
           </div>
         </div>
 
+        {/* 🚀 AKSİYON BUTONLARI */}
         <div className="flex gap-3">
-          <button onClick={onClose} className={`flex-1 py-3 rounded-xl border ${t.cardBorder} ${t.textSecond} ${t.hoverText} ${t.hoverBg} text-sm font-semibold transition-all`}>İptal</button>
-<button onClick={onCreate} disabled={!valid} className={`...`}>
-  {editingAlarmId ? "Değişiklikleri Kaydet" : "Alarmı Kur"}
-</button>
+          <button 
+            onClick={onClose} 
+            className={`flex-1 py-3 rounded-xl border ${t.cardBorder} ${t.textSecond} ${t.hoverText} ${t.hoverBg} text-sm font-semibold transition-all`}
+          >
+            İptal
+          </button>
+          
+          {/* SİHİRLİ PREMIUM BUTON */}
+          <button 
+            onClick={onCreate} 
+            disabled={!valid} 
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] ${
+              valid 
+                ? "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20" 
+                : `${t.deepCardBg} text-gray-500 border border-gray-600/30 cursor-not-allowed`
+            }`}
+          >
+            <BellPlus size={18} />
+            {editingAlarmId ? "Güncelle" : "Alarmı Kur"}
+          </button>
         </div>
+
       </div>
     </div>
   );
