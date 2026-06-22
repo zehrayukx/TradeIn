@@ -103,6 +103,7 @@ def alarm_duzenle(alarm_id: int, gelen_veri: AlarmCreate, db: Session = Depends(
     return {"mesaj": "Alarm başarıyla güncellendi"}
 
 # 🚀 %100 DİNAMİK ALARM TETİKLEME UCU
+# 🚀 %100 DİNAMİK ALARM TETİKLEME UCU
 @router.post("/alarm-tetiklendi")
 def alarm_tetiklendi(gelen_veri: NotificationCreate, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
     # 1. Önce tetiklenen alarmın kendisini veritabanından buluyoruz
@@ -110,7 +111,14 @@ def alarm_tetiklendi(gelen_veri: NotificationCreate, background_tasks: Backgroun
     if not alarm:
         raise HTTPException(status_code=404, detail="Tetiklenmeye çalışılan alarm bulunamadı")
 
-    # 🎯 KİLİT NOKTA: Bildirimi alarmı kuran gerçek kullanıcının ID'sine (alarm.user_id) kaydediyoruz
+    # 🚀 SİHİRLİ ANA ŞALTER KONTROLÜ: 
+    # Kullanıcı Ayarlar sayfasından "Fiyat Alarmları"nı (notif_price) kapattıysa sessizce işlemi bitir!
+    if alarm.owner and not alarm.owner.notif_price:
+        alarm.is_active = False  # Alarm hedefe ulaştığı için yine de pasife alıyoruz (sürekli tetiklenmesin diye)
+        db.commit()
+        return {"mesaj": "Alarm hedefe ulaştı ancak kullanıcı ayarlardan fiyat bildirimlerini kapattığı için sessize alındı."}
+
+    # 🎯 KİLİT NOKTA: Ana şalter AÇIKSA, bildirimi kaydediyoruz
     yeni_bildirim = models.AlarmNotification(
         user_id=alarm.user_id, 
         alarm_id=gelen_veri.alarm_id, 
@@ -125,12 +133,11 @@ def alarm_tetiklendi(gelen_veri: NotificationCreate, background_tasks: Backgroun
     # 2. Alarmı pasife alıyoruz (Spam olmaması için)
     alarm.is_active = False
     
-    # 3. 🚀 %100 Dinamik E-posta Gönderimi:
-    # `alarm.owner.email` ilişkisini kullanarak alarmı kuran gerçek kişinin sistemdeki mail adresini çekiyoruz
+    # 3. 🚀 E-posta Gönderimi (Hem kendi email şalteri hem de ana şalter açıksa):
     if alarm.notify_email and alarm.owner and alarm.owner.email:
         background_tasks.add_task(
             send_alarm_email, 
-            to_email=alarm.owner.email,  # 🎯 Kim tetiklerse tetiklesin, mail her zaman alarmın gerçek sahibine gider!
+            to_email=alarm.owner.email, 
             asset=gelen_veri.asset, 
             target_price=gelen_veri.target_price, 
             current_price=gelen_veri.triggered_price, 
@@ -139,6 +146,3 @@ def alarm_tetiklendi(gelen_veri: NotificationCreate, background_tasks: Backgroun
         
     db.commit()
     return {"mesaj": "Bildirim kaydedildi ve e-posta kuyruğa eklendi"}
-
-
-
