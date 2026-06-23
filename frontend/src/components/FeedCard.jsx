@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Heart, Share2, MoreHorizontal, Send, Edit2, Trash2, X, Check, AlertTriangle } from 'lucide-react';
+import { MessageSquare, Heart, Send, Edit2, Trash2, X, Check, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
@@ -145,9 +145,6 @@ const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
                 <Trash2 size={18} />
               </button>
             )}
-            {!onEdit && !onDelete && (
-              <button className={`${t.textMuted} hover:${t.textPrimary} p-2`}><MoreHorizontal size={20} /></button>
-            )}
           </div>
         </div>
 
@@ -171,7 +168,6 @@ const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
               <span className="text-sm">{localCommentCount}</span>
             </button>
           </div>
-          <button className={`${t.textSecond} hover:text-green-500 transition-colors focus:outline-none`}><Share2 size={18} /></button>
         </div>
 
         {/* Yorumlar Bölümü */}
