@@ -47,6 +47,7 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
   const [modalNotifyBrowser,setModalNotifyBrowser]= useState(true);
   const [modalDropdownOpen, setModalDropdownOpen] = useState(false);
   const [isSidebarOpen,     setIsSidebarOpen]     = useState(true);
+  const [toast,             setToast]             = useState(null);
 
   const isMasterPriceNotifOn = localStorage.getItem('notif_price') !== 'false';
 
@@ -234,11 +235,13 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
       const existing = JSON.parse(localStorage.getItem('tradein_alarms') || '[]');
       localStorage.setItem('tradein_alarms', JSON.stringify([localAlarm, ...existing]));
 
-      alert(`✅ ${modalAsset.name} için hedeflenen ${modalTargetPrice} ${modalAsset.unit} fiyatına alarm başarıyla kuruldu!`);
+      setToast({ type: 'success', message: `${modalAsset.name} için ${modalTargetPrice} ${modalAsset.unit} hedefine alarm kuruldu.` });
+      setTimeout(() => setToast(null), 4000);
 
     } catch (error) {
       console.error("Alarm kayıt hatası:", error);
-      alert("❌ Alarm kurulurken bir hata oluştu.");
+      setToast({ type: 'error', message: 'Alarm kurulurken bir hata oluştu.' });
+      setTimeout(() => setToast(null), 4000);
     } finally {
       setShowAlarmModal(false);
       setModalTargetPrice('');
@@ -353,12 +356,14 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
 
                         {/* İşlemler */}
                         <div className="flex items-center gap-4 justify-between">
-                          <button
-                            onClick={() => handleAlarmClick(item.symbol)}
-                            title={`${item.symbol} için alarm kur`}
-                            className={`transition ${alarmSymbols.includes(item.symbol) ? "text-blue-400" : `${t.textSecond} hover:text-blue-400`}`}>
-                            <Bell size={20} fill={alarmSymbols.includes(item.symbol) ? "#60a5fa" : "transparent"} />
-                          </button>
+                          {(isLoggedIn || localStorage.getItem("tradein_token")) && (
+                            <button
+                              onClick={() => handleAlarmClick(item.symbol)}
+                              title={`${item.symbol} için alarm kur`}
+                              className={`transition ${alarmSymbols.includes(item.symbol) ? "text-blue-400" : `${t.textSecond} hover:text-blue-400`}`}>
+                              <Bell size={20} fill={alarmSymbols.includes(item.symbol) ? "#60a5fa" : "transparent"} />
+                            </button>
+                          )}
                           
                           <button 
                             onClick={() => setSelectedAssetForChart({
@@ -405,12 +410,22 @@ function Markets({ isLoggedIn, setIsLoggedIn }) {
       )}
 
       {selectedAssetForChart && (
-        <AssetDetailModal 
-          asset={selectedAssetForChart} 
-          currentPrice={selectedAssetForChart.current_price} 
-          onClose={() => setSelectedAssetForChart(null)} 
-          theme={theme} 
+        <AssetDetailModal
+          asset={selectedAssetForChart}
+          currentPrice={selectedAssetForChart.current_price}
+          onClose={() => setSelectedAssetForChart(null)}
+          theme={theme}
         />
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-[300] flex items-center gap-3 px-5 py-4 rounded-2xl border shadow-2xl transition-all
+          ${toast.type === 'success'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+            : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+          <span className="text-lg">{toast.type === 'success' ? '🔔' : '❌'}</span>
+          <span className="text-sm font-semibold">{toast.message}</span>
+        </div>
       )}
     </div>
   );
