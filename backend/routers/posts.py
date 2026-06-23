@@ -222,6 +222,17 @@ def populer_postlar(hashtag: Optional[str] = None, db: Session = Depends(databas
     formatted_posts.sort(key=lambda x: x["likes"], reverse=True)
     return formatted_posts
 
+@router.get("/post/{post_id}")
+def get_post(post_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_optional_current_user)):
+    result = db.query(models.Post, models.User.username).join(models.User).filter(models.Post.id == post_id).first()
+    if not result:
+        raise HTTPException(status_code=404, detail="Gönderi bulunamadı")
+    p, u = result
+    like_count    = db.query(models.Like).filter(models.Like.post_id == p.id).count()
+    comment_count = db.query(models.Comment).filter(models.Comment.post_id == p.id).count()
+    is_liked      = bool(current_user and db.query(models.Like).filter(models.Like.post_id == p.id, models.Like.user_id == current_user.id).first())
+    return {"post_id": p.id, "icerik": p.content, "yazar": u, "tarih": p.created_at, "likes": like_count, "comments": comment_count, "isLiked": is_liked}
+
 @router.post("/post/{post_id}/begen")
 def post_begen(
     post_id: int, 

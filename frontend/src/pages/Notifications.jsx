@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bell, Heart, MessageCircle, UserPlus, Check,
-  CheckCheck, Trash2, RefreshCw, LogIn
+  CheckCheck, Trash2, RefreshCw, X
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import FeedCard from '../components/FeedCard';
 import { useTheme, getThemeClasses } from '../context/ThemeContext';
 
 
@@ -29,13 +30,22 @@ const TYPE_META = {
 };
 
 /* ─── Tek bildirim kartı ─── */
-const NotifCard = ({ notif, t, onRead, onDelete }) => {
+const NotifCard = ({ notif, t, onRead, onDelete, onPostClick }) => {
   const meta = TYPE_META[notif.type];
   const Icon = meta.Icon;
 
+  const handleCardClick = () => {
+    if ((notif.type === 'like' || notif.type === 'comment') && notif.post_id) {
+      onRead(notif.id);
+      onPostClick(notif.post_id);
+    }
+  };
+
   return (
     <div
+      onClick={handleCardClick}
       className={`relative flex gap-4 px-5 py-4 rounded-2xl border transition-all duration-200
+        ${(notif.type === 'like' || notif.type === 'comment') && notif.post_id ? 'cursor-pointer hover:border-blue-500/50' : ''}
         ${!notif.read
           ? `${t.cardBg} border-blue-500/30 shadow-sm shadow-blue-500/5`
           : `${t.cardBg} ${t.cardBorder}`
@@ -80,12 +90,9 @@ const NotifCard = ({ notif, t, onRead, onDelete }) => {
 
         {/* Gönderi önizleme (like veya comment) */}
         {notif.post_preview && (
-          <Link
-            to={notif.post_id ? `/post/${notif.post_id}` : '#'}
-            className={`inline-block text-xs mt-1.5 px-2.5 py-1 rounded-lg ${t.deepCardBg} ${t.textSecond} border ${t.deepCardBorder} hover:border-blue-500/40 transition-colors line-clamp-1 max-w-xs`}
-          >
+          <span className={`inline-block text-xs mt-1.5 px-2.5 py-1 rounded-lg ${t.deepCardBg} ${t.textSecond} border ${t.deepCardBorder} line-clamp-1 max-w-xs`}>
             {notif.post_preview}
-          </Link>
+          </span>
         )}
 
         <span className={`text-xs ${t.textMuted} mt-1.5 block`}>{timeAgo(notif.created_at)}</span>
@@ -125,7 +132,9 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
   const [searchQuery, setSearchQuery]         = useState('');
   const [notifications, setNotifications]     = useState([]);
   const [loading, setLoading]                 = useState(true);
-  const [activeFilter, setActiveFilter]       = useState('all'); // 'all'|'unread'|'follow'|'like'|'comment'
+  const [activeFilter, setActiveFilter]       = useState('all');
+  const [selectedPost, setSelectedPost]       = useState(null);
+  const [postModalLoading, setPostModalLoading] = useState(false);
 
   /* ── Bildirimleri yükle ── */
   const fetchNotifications = useCallback(async () => {
@@ -159,6 +168,32 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
     if (isLoggedIn) fetchNotifications();
     else setLoading(false);
   }, [isLoggedIn, fetchNotifications]);
+
+  const handlePostClick = async (postId) => {
+    setPostModalLoading(true);
+    setSelectedPost(null);
+    try {
+      const token = localStorage.getItem('tradein_token');
+      const res = await fetch(`http://127.0.0.1:8000/post/${postId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setSelectedPost({
+        id: data.post_id,
+        user: { name: data.yazar, avatar: `https://ui-avatars.com/api/?name=${data.yazar}&background=random&color=fff`, isVerified: false },
+        content: data.icerik,
+        time: new Date(data.tarih).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+        likes: data.likes,
+        comments: data.comments,
+        isLiked: data.isLiked,
+      });
+    } catch {
+      /* sessiz hata */
+    } finally {
+      setPostModalLoading(false);
+    }
+  };
 
   /* ── Okundu işaretle ── */
   const handleRead = async (id) => {
@@ -341,13 +376,13 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
           ) : (
             <>
               {/* ── Tip grupları ── */}
-              {activeFilter === 'all' && renderGroups(filtered, t, handleRead, handleDelete)}
+              {activeFilter === 'all' && renderGroups(filtered, t, handleRead, handleDelete, handlePostClick)}
 
               {/* ── Düz liste (filtreli) ── */}
               {activeFilter !== 'all' && (
                 <div className="space-y-3">
                   {filtered.map(n => (
-                    <NotifCard key={n.id} notif={n} t={t} onRead={handleRead} onDelete={handleDelete} />
+                    <NotifCard key={n.id} notif={n} t={t} onRead={handleRead} onDelete={handleDelete} onPostClick={handlePostClick} />
                   ))}
                 </div>
               )}
@@ -362,12 +397,32 @@ export default function Notifications({ isLoggedIn, setIsLoggedIn }) {
           )}
         </main>
       </div>
+
+      {/* ── Post Modalı ── */}
+      {(postModalLoading || selectedPost) && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
+          <div className="w-full max-w-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-end mb-2">
+              <button onClick={() => setSelectedPost(null)} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            {postModalLoading ? (
+              <div className={`${t.cardBg} border ${t.cardBorder} rounded-2xl p-8 text-center`}>
+                <p className={`${t.textMuted} animate-pulse text-sm`}>Gönderi yükleniyor...</p>
+              </div>
+            ) : selectedPost && (
+              <FeedCard post={selectedPost} onLike={() => {}} currentUser={null} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ─── Tip bazlı gruplama ─── */
-function renderGroups(notifications, t, onRead, onDelete) {
+function renderGroups(notifications, t, onRead, onDelete, onPostClick) {
   const groups = [
     { key: 'follow',  label: 'Takip', icon: UserPlus,      color: 'text-blue-400' },
     { key: 'like',    label: 'Beğeniler (Son 7 Gün)', icon: Heart, color: 'text-red-400' },
@@ -392,7 +447,7 @@ function renderGroups(notifications, t, onRead, onDelete) {
             </div>
             <div className="space-y-3">
               {items.map(n => (
-                <NotifCard key={n.id} notif={n} t={t} onRead={onRead} onDelete={onDelete} />
+                <NotifCard key={n.id} notif={n} t={t} onRead={onRead} onDelete={onDelete} onPostClick={onPostClick} />
               ))}
             </div>
           </div>
