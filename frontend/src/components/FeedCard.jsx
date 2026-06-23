@@ -60,7 +60,8 @@ const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
       setLocalCommentCount(prev => prev + 1);
       fetchComments();
     } catch (error) {
-      alert(error.response?.data?.detail || "Yorum gönderilirken bir hata oluştu.");
+      setCommentToast({ type: 'error', message: error.response?.data?.detail || "Yorum gönderilirken bir hata oluştu." });
+      setTimeout(() => setCommentToast(null), 4000);
     }
   };
 
@@ -117,7 +118,8 @@ const FeedCard = ({ post, onLike, onEdit, currentUser, onDelete }) => {
       setEditingCommentId(null);
       
     } catch (error) {
-      alert(error.response?.data?.detail || "Yorum güncellenirken bir hata oluştu.");
+      setCommentToast({ type: 'error', message: error.response?.data?.detail || "Yorum güncellenirken bir hata oluştu." });
+      setTimeout(() => setCommentToast(null), 4000);
     }
   };
 

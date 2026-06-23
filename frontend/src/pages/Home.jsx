@@ -29,6 +29,7 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
+  const [postError, setPostError] = useState(null);
   const [user, setUser] = useState(null);
 
   const handleLogout = () => {
@@ -75,7 +76,11 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
       setShowCreateModal(false);
       setSearchQuery("");
       setActiveTab(isLoggedIn ? 'Takip Edilenler' : 'Trendler');
-    } catch (error) { console.error(error); } finally { setIsPublishing(false); }
+    } catch (error) {
+      const msg = error.response?.data?.detail || "Gönderi paylaşılırken bir hata oluştu.";
+      setPostError(msg);
+      setTimeout(() => setPostError(null), 5000);
+    } finally { setIsPublishing(false); }
   };
 
   // Bu fonksiyon tetiklendiğinde sayfa arkadan postları güncelleyecek
@@ -208,6 +213,12 @@ const Home = ({ isLoggedIn, setIsLoggedIn }) => {
                     placeholder="paylas"
                     className={`w-full bg-transparent border-none text-lg ${t.textPrimary} placeholder-gray-400 resize-none outline-none min-h-[150px] py-2`}
                   />
+                  {postError && (
+                    <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3 mt-3">
+                      <X size={16} className="mt-0.5 shrink-0" />
+                      <span>{postError}</span>
+                    </div>
+                  )}
                   <div className={`flex items-center justify-between pt-4 border-t ${t.divider} mt-4`}>
                     <div className="flex gap-2"><button className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"><ImageIcon size={20} /></button></div>
                     <button

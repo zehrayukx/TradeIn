@@ -15,6 +15,7 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPostContent, setNewPostContent]   = useState('');
   const [isPublishing, setIsPublishing]       = useState(false);
+  const [postError, setPostError]             = useState(null);
   const [notifCount, setNotifCount]           = useState(0);
 
   // 🚀 Cache'ten anında oku → sayfa geçişinde "U" flaşı olmaz
@@ -123,8 +124,9 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
       if (location.pathname === '/') window.location.reload();
       else navigate('/');
     } catch (error) {
-      console.error(error);
-      alert('Gönderi paylaşılırken bir hata oluştu.');
+      const msg = error.response?.data?.detail || 'Gönderi paylaşılırken bir hata oluştu.';
+      setPostError(msg);
+      setTimeout(() => setPostError(null), 5000);
     } finally {
       setIsPublishing(false);
     }
@@ -244,6 +246,12 @@ const Navbar = ({ toggleSidebar, isLoggedIn, user, handleLogout, searchQuery, se
                 placeholder="paylas: "
                 className={`w-full ${t.inputBg} border ${t.inputBorder} rounded-xl text-lg ${t.textPrimary} resize-none outline-none p-4 min-h-[150px] focus:border-blue-500 transition-all`}
               />
+              {postError && (
+                <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3 mt-3">
+                  <X size={16} className="mt-0.5 shrink-0" />
+                  <span>{postError}</span>
+                </div>
+              )}
               <div className="flex justify-end pt-4 mt-4">
                 <button
                   disabled={!newPostContent.trim() || isPublishing}
